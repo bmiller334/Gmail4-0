@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyEmail } from "@/ai/email-classifier";
 import { moveEmailToCategory, getGmailClient } from "@/lib/gmail-service";
+import { logEmailProcessing } from "@/lib/db-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,13 +24,14 @@ export async function POST(req: NextRequest) {
     
     console.log(`Received notification for ${emailAddress}, historyId: ${historyId}`);
 
-    // 2. Fetch the actual email(s) that changed using our centralized client
+    // 2. Fetch the actual email(s) that changed
     const gmail = await getGmailClient();
 
+    // Fetch the latest UNREAD email in INBOX
     const response = await gmail.users.messages.list({
         userId: 'me',
-        q: 'label:INBOX is:unread', // Filter for unread in inbox
-        maxResults: 1, // Just grab the latest one for this demo trigger
+        q: 'label:INBOX is:unread', 
+        maxResults: 1, 
     });
 
     const messages = response.data.messages;
@@ -66,7 +68,15 @@ export async function POST(req: NextRequest) {
         // 4. Move the email
         await moveEmailToCategory(messageId, classification.category);
         
-        // TODO: Store stats in a DB
+        // 5. Store stats in Firestore
+        await logEmailProcessing({
+            id: messageId,
+            sender,
+            subject,
+            category: classification.category,
+            isUrgent: classification.isUrgent,
+            timestamp: new Date()
+        });
     }
 
     return NextResponse.json({ status: "success" });

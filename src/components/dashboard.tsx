@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Card,
   CardContent,
@@ -7,54 +9,80 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail } from "lucide-react";
+import { Activity, AlertTriangle, Mail, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Button } from "./ui/button";
 
-// Mock data for the dashboard - in a real app this would come from the database
-const MOCK_STATS = {
-  totalProcessed: 1245,
-  categories: {
-    Important: 120,
-    Personal: 45,
-    Work: 300,
-    Finance: 50,
-    Marketing: 600,
-    Social: 80,
-    Updates: 40,
-    Spam: 10,
-  } as Record<EmailCategory, number>,
-  topSenders: [
-    { name: "Amazon", count: 45 },
-    { name: "Newsletter Weekly", count: 12 },
-    { name: "Boss Man", count: 8 },
-  ],
-  anomalies: [
-    { type: "Spike", description: "Unusual volume of Marketing emails from 'MegaStore' detected." },
-  ],
+// Types for our stats
+type DashboardStats = {
+    totalProcessed: number;
+    categories: Record<string, number>;
+    senders: Record<string, number>;
+    lastUpdated?: any;
+};
+
+type EmailLog = {
+    id: string;
+    sender: string;
+    subject: string;
+    category: string;
+    timestamp: any;
 };
 
 export default function Dashboard() {
-  const maxCategoryCount = Math.max(...Object.values(MOCK_STATS.categories));
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [logs, setLogs] = useState<EmailLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        setStats(data.stats);
+        setLogs(data.logs);
+    } catch (err) {
+        console.error("Failed to fetch dashboard data", err);
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    // Optional: Poll every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const maxCategoryCount = stats ? Math.max(...Object.values(stats.categories || {}), 1) : 1;
+  const sortedSenders = stats ? Object.entries(stats.senders || {}).sort((a,b) => b[1] - a[1]).slice(0, 5) : [];
 
   return (
     <div className="p-8 space-y-8">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Inbox Zero Dashboard</h2>
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-            <Activity className="h-4 w-4" />
-            <span>System Active</span>
+        <div className="flex items-center space-x-4">
+             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Activity className="h-4 w-4" />
+                <span>{loading ? "Updating..." : "System Active"}</span>
+            </div>
+            <Button variant="outline" size="icon" onClick={fetchData}>
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Processed</CardTitle>
+            <CardTitle className="text-sm font-medium">Today's Volume</CardTitle>
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{MOCK_STATS.totalProcessed}</div>
+            <div className="text-2xl font-bold">{stats?.totalProcessed || 0}</div>
             <p className="text-xs text-muted-foreground">
-              +12% from last week
+              Emails processed today
             </p>
           </CardContent>
         </Card>
@@ -64,7 +92,7 @@ export default function Dashboard() {
              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-             <div className="text-2xl font-bold">{MOCK_STATS.categories.Spam}</div>
+             <div className="text-2xl font-bold">{stats?.categories?.['Spam'] || 0}</div>
              <p className="text-xs text-muted-foreground">
                Auto-archived
              </p>
@@ -77,13 +105,13 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle>Email Categories</CardTitle>
             <CardDescription>
-              Distribution of incoming emails by assigned category.
+              Distribution of incoming emails today.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {EMAIL_CATEGORIES.map((category) => {
-                  const count = MOCK_STATS.categories[category] || 0;
+                  const count = stats?.categories?.[category] || 0;
                   const percentage = Math.round((count / maxCategoryCount) * 100);
                   
                   return (
@@ -101,37 +129,54 @@ export default function Dashboard() {
         </Card>
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Insights & Anomalies</CardTitle>
+            <CardTitle>Top Senders</CardTitle>
             <CardDescription>
-              Detected patterns and high-volume senders.
+              Who is emailing you the most?
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
              <div>
-                <h4 className="text-sm font-semibold mb-2">Top Senders</h4>
                 <ul className="space-y-2 text-sm">
-                    {MOCK_STATS.topSenders.map((sender, i) => (
+                    {sortedSenders.length === 0 && <li className="text-muted-foreground">No data yet.</li>}
+                    {sortedSenders.map(([name, count], i) => (
                         <li key={i} className="flex justify-between border-b pb-1 last:border-0">
-                            <span>{sender.name}</span>
-                            <span className="font-mono text-muted-foreground">{sender.count}</span>
+                            <span className="truncate max-w-[200px]" title={name}>{name.replace(/_/g, '.')}</span>
+                            <span className="font-mono text-muted-foreground">{count}</span>
                         </li>
                     ))}
                 </ul>
              </div>
-             
-             {MOCK_STATS.anomalies.length > 0 && (
-                 <div className="rounded-md bg-yellow-50 p-3 dark:bg-yellow-900/20">
-                     <div className="flex items-center space-x-2 text-yellow-800 dark:text-yellow-500 mb-1">
-                         <AlertTriangle className="h-4 w-4" />
-                         <span className="font-semibold text-sm">Anomaly Detected</span>
-                     </div>
-                     <p className="text-xs text-yellow-700 dark:text-yellow-400">
-                         {MOCK_STATS.anomalies[0].description}
-                     </p>
-                 </div>
-             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-1">
+          <Card>
+              <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                  <div className="space-y-2">
+                      {logs.length === 0 && <p className="text-sm text-muted-foreground">No recent emails processed.</p>}
+                      {logs.map((log) => (
+                          <div key={log.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0 last:pb-0">
+                              <div className="flex flex-col">
+                                  <span className="font-medium">{log.subject}</span>
+                                  <span className="text-xs text-muted-foreground">{log.sender}</span>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                  <span className="px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground text-xs">
+                                      {log.category}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                      {new Date(log.timestamp._seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </span>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </CardContent>
+          </Card>
       </div>
     </div>
   );
