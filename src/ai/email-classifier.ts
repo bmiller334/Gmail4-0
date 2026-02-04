@@ -4,7 +4,7 @@ import { EMAIL_CATEGORIES } from "@/lib/categories";
 
 const ai = genkit({
   plugins: [googleAI()],
-  model: "googleai/gemini-1.5-flash", // Using the string identifier
+  model: "googleai/gemini-2.5-flash", // Using the string identifier
 });
 
 const EmailClassificationSchema = z.object({

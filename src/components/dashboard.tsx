@@ -8,8 +8,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw } from "lucide-react";
+import { EMAIL_CATEGORIES } from "@/lib/categories";
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 
@@ -27,11 +27,13 @@ type EmailLog = {
     subject: string;
     category: string;
     timestamp: any;
+    isUrgent?: boolean;
 };
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [logs, setLogs] = useState<EmailLog[]>([]);
+  const [insights, setInsights] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
@@ -40,7 +42,8 @@ export default function Dashboard() {
         const res = await fetch('/api/stats');
         const data = await res.json();
         setStats(data.stats);
-        setLogs(data.logs);
+        setLogs(data.logs || []);
+        setInsights(data.insights || []);
     } catch (err) {
         console.error("Failed to fetch dashboard data", err);
     } finally {
@@ -50,7 +53,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    // Optional: Poll every 30 seconds
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -127,15 +129,13 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Top Senders</CardTitle>
-            <CardDescription>
-              Who is emailing you the most?
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-             <div>
+        
+        <div className="col-span-3 space-y-4">
+            <Card>
+            <CardHeader>
+                <CardTitle>Top Senders</CardTitle>
+            </CardHeader>
+            <CardContent>
                 <ul className="space-y-2 text-sm">
                     {sortedSenders.length === 0 && <li className="text-muted-foreground">No data yet.</li>}
                     {sortedSenders.map(([name, count], i) => (
@@ -145,9 +145,29 @@ export default function Dashboard() {
                         </li>
                     ))}
                 </ul>
-             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+            </Card>
+
+            <Card className="bg-muted/50">
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center space-x-2 text-base">
+                    <Lightbulb className="h-4 w-4 text-amber-500" />
+                    <span>Insights</span>
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                 <ul className="space-y-2 text-sm">
+                     {insights.length === 0 && <li className="text-muted-foreground">No anomalies detected.</li>}
+                     {insights.map((insight, i) => (
+                         <li key={i} className="flex items-start space-x-2">
+                             <span className="block mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                             <span>{insight}</span>
+                         </li>
+                     ))}
+                 </ul>
+            </CardContent>
+            </Card>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-1">
@@ -161,7 +181,10 @@ export default function Dashboard() {
                       {logs.map((log) => (
                           <div key={log.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0 last:pb-0">
                               <div className="flex flex-col">
-                                  <span className="font-medium">{log.subject}</span>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-medium">{log.subject}</span>
+                                    {log.isUrgent && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-800 rounded font-bold">URGENT</span>}
+                                  </div>
                                   <span className="text-xs text-muted-foreground">{log.sender}</span>
                               </div>
                               <div className="flex items-center space-x-2">
