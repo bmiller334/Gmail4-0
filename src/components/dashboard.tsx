@@ -9,9 +9,20 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb } from "lucide-react";
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser } from "lucide-react"; 
+// Swapped Broom for Eraser just in case, though Broom should exist.
 import { useEffect, useState } from "react";
-import { Button } from "./ui/button";
+import { Button } from "@/components/ui/button"; // Fixed import path
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 // Types for our stats
 type DashboardStats = {
@@ -35,6 +46,8 @@ export default function Dashboard() {
   const [logs, setLogs] = useState<EmailLog[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cleaning, setCleaning] = useState(false);
+  const { toast } = useToast();
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,6 +62,42 @@ export default function Dashboard() {
     } finally {
         setLoading(false);
     }
+  };
+
+  const handleCleanup = async () => {
+      setCleaning(true);
+      toast({
+          title: "Starting Cleanup",
+          description: "Processing up to 10 emails from your inbox...",
+      });
+
+      try {
+          const res = await fetch('/api/cleanup', { method: 'POST' });
+          const data = await res.json();
+
+          if (res.ok) {
+              toast({
+                  title: "Cleanup Complete",
+                  description: data.message,
+              });
+              // Refresh data after cleanup
+              fetchData();
+          } else {
+              toast({
+                  variant: "destructive",
+                  title: "Cleanup Failed",
+                  description: data.error || "An error occurred.",
+              });
+          }
+      } catch (err) {
+          toast({
+              variant: "destructive",
+              title: "Error",
+              description: "Failed to connect to server.",
+          });
+      } finally {
+          setCleaning(false);
+      }
   };
 
   useEffect(() => {
@@ -71,6 +120,10 @@ export default function Dashboard() {
             </div>
             <Button variant="outline" size="icon" onClick={fetchData}>
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button onClick={handleCleanup} disabled={cleaning}>
+                {cleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
+                {cleaning ? "Cleaning..." : "Clean Inbox"}
             </Button>
         </div>
       </div>
@@ -176,28 +229,40 @@ export default function Dashboard() {
                   <CardTitle>Recent Activity</CardTitle>
               </CardHeader>
               <CardContent>
-                  <div className="space-y-2">
-                      {logs.length === 0 && <p className="text-sm text-muted-foreground">No recent emails processed.</p>}
-                      {logs.map((log) => (
-                          <div key={log.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0 last:pb-0">
-                              <div className="flex flex-col">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="font-medium">{log.subject}</span>
-                                    {log.isUrgent && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-800 rounded font-bold">URGENT</span>}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">{log.sender}</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                  <span className="px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground text-xs">
-                                      {log.category}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
+                  <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>Sender</TableHead>
+                              <TableHead>Category</TableHead>
+                              <TableHead className="text-right">Time</TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {logs.length === 0 && (
+                              <TableRow>
+                                  <TableCell colSpan={4} className="text-center text-muted-foreground">No recent emails processed.</TableCell>
+                              </TableRow>
+                          )}
+                          {logs.map((log) => (
+                              <TableRow key={log.id}>
+                                  <TableCell className="font-medium">
+                                      <div className="flex flex-col space-y-1">
+                                          <span>{log.subject}</span>
+                                          {log.isUrgent && <Badge variant="destructive" className="w-fit text-[10px] py-0 px-1">URGENT</Badge>}
+                                      </div>
+                                  </TableCell>
+                                  <TableCell>{log.sender}</TableCell>
+                                  <TableCell>
+                                      <Badge variant="secondary">{log.category}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
                                       {new Date(log.timestamp._seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                  </span>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
+                                  </TableCell>
+                              </TableRow>
+                          ))}
+                      </TableBody>
+                  </Table>
               </CardContent>
           </Card>
       </div>

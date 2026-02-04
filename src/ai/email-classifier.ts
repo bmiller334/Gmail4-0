@@ -1,11 +1,6 @@
-import { genkit, z } from "genkit";
-import { googleAI } from "@genkit-ai/google-genai";
+import { z } from "genkit";
+import { ai } from "./genkit"; // Import the shared instance
 import { EMAIL_CATEGORIES } from "@/lib/categories";
-
-const ai = genkit({
-  plugins: [googleAI()],
-  model: "googleai/gemini-2.5-flash", // Using the string identifier
-});
 
 const EmailClassificationSchema = z.object({
   category: z.enum(EMAIL_CATEGORIES),
@@ -39,6 +34,7 @@ export const classifyEmail = ai.defineFlow(
       Provide the classification, a brief reasoning, and whether it is urgent.
     `;
 
+    // Using the default model configured in ./genkit.ts
     const { output } = await ai.generate({
       prompt: prompt,
       output: { schema: EmailClassificationSchema },
