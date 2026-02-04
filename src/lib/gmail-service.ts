@@ -2,25 +2,38 @@
 
 import { google } from "googleapis";
 
-// This is a placeholder for the actual OAuth2 client setup.
-// In a real application, you would need to handle the OAuth2 flow or service account authentication properly.
-// For a personal script, you might use a refresh token to get an access token.
+export const getGmailClient = async () => {
+  // Check for OAuth2 credentials for Personal Gmail
+  const clientId = process.env.GMAIL_CLIENT_ID;
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+  const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
 
-const getGmailClient = async () => {
-  // TODO: Implement proper authentication (e.g., loading credentials from env vars or a secrets manager)
-  // For now, we assume the environment has GOOGLE_APPLICATION_CREDENTIALS set or similar mechanism for default auth,
-  // or we need to manually construct the OAuth2 client.
-  
-  // CAUTION: This requires a valid token mechanism. 
-  // For the purpose of this scaffold, I'll instantiate a client but it needs real credentials to work.
-  
-  const auth = new google.auth.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/gmail.modify'],
-  });
-  
-  const authClient = await auth.getClient();
+  let authClient: any;
 
-  return google.gmail({ version: 'v1', auth: authClient as any });
+  if (clientId && clientSecret && refreshToken) {
+      // console.log("Using OAuth2 Client for Personal Gmail"); // Commented out to reduce noise
+      const oAuth2Client = new google.auth.OAuth2(
+        clientId,
+        clientSecret,
+        "https://developers.google.com/oauthplayground" 
+      );
+
+      oAuth2Client.setCredentials({
+        refresh_token: refreshToken
+      });
+      
+      authClient = oAuth2Client;
+  } else {
+      // Fallback to Application Default Credentials (Service Account)
+      // This ONLY works for Workspace (G Suite) domains with Domain-Wide Delegation.
+      // console.log("Using Default Application Credentials (Service Account)");
+      const auth = new google.auth.GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/gmail.modify'],
+      });
+      authClient = await auth.getClient();
+  }
+
+  return google.gmail({ version: 'v1', auth: authClient });
 };
 
 export async function listLabels() {
