@@ -3,18 +3,18 @@ import { classifyEmail } from "@/ai/email-classifier";
 import { moveEmailToCategory, getGmailClient } from "@/lib/gmail-service";
 import { logEmailProcessing } from "@/lib/db-service";
 
-export const maxDuration = 60; // Allow up to 60 seconds for execution (Cloud Run default is usually higher, but Next.js limits serverless functions)
+// Increase timeout to (3000 seconds) for batch processing
+export const maxDuration = 3000; 
 
 export async function POST() {
   try {
     const gmail = await getGmailClient();
     
-    // Fetch up to 10 unread emails from INBOX
-    // q: 'label:INBOX is:unread'
+    // Fetch up to 50 unread emails from INBOX (Reasonable batch size for one request)
     const response = await gmail.users.messages.list({
         userId: 'me',
         q: 'label:INBOX is:unread',
-        maxResults: 10, 
+        maxResults: 50, 
     });
 
     const messages = response.data.messages;
@@ -24,13 +24,11 @@ export async function POST() {
     }
 
     let processedCount = 0;
+    const errors: any[] = [];
 
-    // Process them in parallel or sequence? Sequence is safer for rate limits, Parallel is faster.
-    // Let's do a limited concurrency.
-    
-    for (const msg of messages) {
-        if (!msg.id) continue;
-
+    // Helper function to process a single message
+    const processMessage = async (msg: any) => {
+        if (!msg.id) return;
         try {
             const messageDetails = await gmail.users.messages.get({
                 userId: 'me',
@@ -39,10 +37,10 @@ export async function POST() {
             });
 
             const headers = messageDetails.data.payload?.headers;
-            const subject = headers?.find(h => h.name === 'Subject')?.value || 'No Subject';
-            const sender = headers?.find(h => h.name === 'From')?.value || 'Unknown Sender';
+            const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
+            const sender = headers?.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
             const snippet = messageDetails.data.snippet || '';
-            const bodyContent = snippet; // Simplified
+            const bodyContent = snippet; 
 
             // Classify
             const classification = await classifyEmail({
@@ -66,15 +64,27 @@ export async function POST() {
             });
 
             processedCount++;
-        } catch (err) {
+        } catch (err: any) {
             console.error(`Failed to process message ${msg.id}`, err);
-            // Continue to next message even if one fails
+            errors.push({ id: msg.id, error: err.message });
         }
+    };
+
+    // Process in chunks to control concurrency (avoid hitting API rate limits)
+    const CONCURRENCY_LIMIT = 5;
+    const chunks = [];
+    for (let i = 0; i < messages.length; i += CONCURRENCY_LIMIT) {
+        chunks.push(messages.slice(i, i + CONCURRENCY_LIMIT));
+    }
+
+    for (const chunk of chunks) {
+        await Promise.all(chunk.map(msg => processMessage(msg)));
     }
 
     return NextResponse.json({ 
         message: `Successfully processed ${processedCount} emails.`, 
-        count: processedCount 
+        count: processedCount,
+        errors: errors.length > 0 ? errors : undefined
     });
 
   } catch (error: any) {
