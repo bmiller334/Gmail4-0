@@ -1,12 +1,14 @@
 export const EMAIL_CATEGORIES = [
-  "Important",
-  "Personal",
-  "Work",
+  "[Action Required]",
   "Finance",
+  "Manual Sort",
   "Marketing",
+  "Newslettter",
+  "Promotions",
+  "Security Alerts",
   "Social",
   "Updates",
-  "Spam",
+  "Work"
 ] as const;
 
 export type EmailCategory = (typeof EMAIL_CATEGORIES)[number];

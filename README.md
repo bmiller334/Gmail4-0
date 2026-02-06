@@ -1,11 +1,11 @@
-# Project Context: AI-Powered Inbox Zero Manager
+# Project Context: AI-Powered Inbox Zero Manager (Syracuse Hardware Command Center)
 
 **For Future AI Agents & Developers:**
 This document serves as the primary context source for the current state of the project. It outlines architectural decisions, specific workarounds implemented to bypass Google Cloud limitations for personal accounts, and the current feature set.
 
 ## 1. Project Overview
-This is a **Next.js** application deployed on **Google Cloud Run** designed to automate email organization for a **personal Gmail account**.
-*   **Goal**: Maintain "Inbox Zero" by moving emails to static categories (Labels) while keeping them **UNREAD**.
+This is a **Next.js** application deployed on **Google Cloud Run** designed to be a central command center for a hardware store owner in Syracuse, KS.
+*   **Goal**: Maintain "Inbox Zero" by moving emails to static categories (Labels) and provide critical operational data (Weather, Commodity Prices, Staff Notes).
 *   **Primary AI**: **Gemini 2.5 Flash** (via Genkit).
 *   **Trigger**: Real-time event listening via Google Cloud Pub/Sub (Push Notifications), not polling.
 
@@ -21,11 +21,24 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to a
     *   **Fetch**: Retreives the latest unread email details.
     *   **Classify**: Sends the Subject, Sender, and Snippet to **Gemini 2.5 Flash**.
     *   **Action**: Moves the email to a label (e.g., "Marketing", "Work") using the Gmail API.
-    *   **Log**: Writes processing metadata to **Firestore** (`email_logs` and `email_stats` collections).
+    *   **Log**: Writes processing metadata and **AI Reasoning** to **Firestore** (`email_logs`, `email_stats`, `email_corrections`, `email_urgency_corrections`, `email_rules` collections).
 
-3.  **Visualization (Dashboard)**:
-    *   Frontend polls `/api/stats` to render real-time volume, category distribution, and "Insights".
-    *   Includes a "Clean Inbox" button for manual batch processing.
+3.  **Visualization (Command Center Dashboard)**:
+    *   Frontend polls `/api/stats` to render real-time volume and category distribution.
+    *   **Store Widgets**:
+        *   **Ag-Focused Weather**: Real-time weather for Syracuse, KS with agricultural advice.
+        *   **Commodity Ticker**: Tracks Lumber, Copper, and Steel prices.
+        *   **Community Events**: Lists local events (e.g., Homecoming, Chamber of Commerce).
+        *   **Shift Handoff Notes**: A persistent sticky-note board for staff communication (`store_notes` collection).
+    *   **System Logs**: A dedicated page (`/logs`) streams system logs from Google Cloud Logging.
+    *   **Error Ticker**: A global ticker at the top of the app showing recent system errors.
+
+4.  **Learning & Correction System**:
+    *   Users can manually correct email categorizations or urgency flags.
+    *   **Corrections** are stored in Firestore (`email_corrections` and `email_urgency_corrections`).
+    *   The classification logic (`src/ai/email-classifier.ts`) fetches the last 5 corrections to use as **few-shot examples** in the prompt, improving accuracy over time.
+    *   Users can define **Sender Rules** (`src/app/api/rules/route.ts`) to hard-code categories for specific senders, bypassing AI for known patterns.
+    *   The system can analyze log history to suggest new rules based on consistent patterns (`src/app/api/rules/suggestions/route.ts`).
 
 ## 3. Critical Implementation Details (Do Not Regression)
 
@@ -63,6 +76,10 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to a
 *   **Constraint**: Processing hundreds of emails at once triggers rate limits.
 *   **Solution**: `src/app/api/cleanup/route.ts` is capped at **50 emails** per run and uses a concurrency limit of 5 parallel requests.
 
+### Firestore FieldValue Issues
+*   **Problem**: Updating nested fields (like `categories.Marketing`) in Firestore sometimes failed if the document didn't exist or fields weren't initialized.
+*   **Solution**: `src/lib/db-service.ts` uses a try-catch block with error code checking. If an update fails with `NOT_FOUND` (Error code 5), it performs a `set` operation to initialize the document.
+
 ## 5. Setup & Deployment Reference
 
 ### Environment Variables
@@ -76,28 +93,49 @@ GMAIL_TOPIC_NAME=projects/{project}/topics/gmail-incoming
 ```
 
 ### Deployment Commands
-**1. Build Container:**
+**1. Switch Project:**
 ```bash
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/nextn-email-sorter .
+gcloud config set project gmail4-0
 ```
 
-**2. Deploy Service:**
+**2. Build Container:**
+```bash
+gcloud builds submit --tag gcr.io/gmail4-0/nextn-email-sorter .
+```
+
+**3. Deploy Service:**
 ```bash
 gcloud run deploy nextn-email-sorter \
-  --image gcr.io/YOUR_PROJECT_ID/nextn-email-sorter \
+  --image gcr.io/gmail4-0/nextn-email-sorter \
   --region us-central1 \
   --platform managed \
   --allow-unauthenticated \
   --set-env-vars GOOGLE_GENAI_API_KEY=...,GMAIL_CLIENT_ID=..., (etc)
 ```
 
-**3. Update Subscription (If URL changes):**
+**4. Update Subscription (If URL changes):**
 ```bash
 gcloud pubsub subscriptions update gmail-subscription \
     --push-endpoint=https://YOUR-NEW-SERVICE-URL/api/process-email
 ```
 
-**4. Renew Watch (Weekly):**
+**5. Renew Watch (Weekly):**
 ```bash
 npx tsx scripts/setup-gmail-watch.ts
 ```
+
+## 6. Firestore Schema Reference
+
+### Collections:
+*   **`email_logs`**: Stores individual processing logs.
+    *   Fields: `id` (Message ID), `sender`, `subject`, `category`, `timestamp`, `isUrgent`, `snippet`, `reasoning`.
+*   **`email_stats`**: Stores aggregated statistics, sharded by date (ID: `YYYY-MM-DD`).
+    *   Fields: `totalProcessed`, `categories` (Map), `senders` (Map), `lastUpdated`.
+*   **`email_corrections`**: Stores user corrections for categories.
+    *   Fields: `id`, `sender`, `subject`, `snippet`, `wrongCategory`, `correctCategory`, `timestamp`.
+*   **`email_urgency_corrections`**: Stores user corrections for urgency flags.
+    *   Fields: `id`, `sender`, `subject`, `snippet`, `wasUrgent`, `shouldBeUrgent`, `timestamp`.
+*   **`email_rules`**: Stores user-defined sender rules.
+    *   Fields: `id`, `sender` (email or pattern), `category`, `createdAt`.
+*   **`store_notes`**: Stores shift handoff notes.
+    *   Fields: `id`, `content`, `createdAt`, `author`.

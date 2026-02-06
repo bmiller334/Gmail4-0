@@ -36,21 +36,8 @@ export async function POST(req: NextRequest) {
 
     const messages = response.data.messages;
     
-    if (messages && messages.length > 0) {
-        const messageId = messages[0].id;
-        if (!messageId) return NextResponse.json({ message: "No message ID found" });
-
-        const messageDetails = await gmail.users.messages.get({
-            userId: 'me',
-            id: messageId,
-            format: 'minimal', // CHANGED: 'full' -> 'minimal' to save bandwidth, we only need snippet & headers
-        });
-        
-        // Note: 'minimal' format only includes snippet and core headers usually. 
-        // If we need specific headers, we might need 'metadata'.
-        // Let's stick to 'full' but ignore body content in logic to be safe, 
-        // OR use 'metadata' which is lighter.
-        // Reverting to 'full' for safety but explicitly NOT passing body to AI.
+    if (!messages || messages.length === 0) {
+        return NextResponse.json({ message: "No new unread messages found" });
     }
 
     // Retrying with 'metadata' format which is much lighter than 'full'
@@ -74,6 +61,7 @@ export async function POST(req: NextRequest) {
 
     let category = null;
     let isUrgent = false;
+    let reasoning = null;
 
     // 3a. Check Deterministic Rules First
     const rules = await getSenderRules();
@@ -83,17 +71,19 @@ export async function POST(req: NextRequest) {
             console.log(`Matched rule: ${matchedRule.sender} -> ${matchedRule.category}`);
             category = matchedRule.category;
             isUrgent = false; // Default for rules unless we add an 'urgent' flag to rules too
+            reasoning = `Matched custom rule for sender: ${matchedRule.sender}`;
     } else {
             // 3b. Fallback to AI Classification
             // OPTIMIZATION: Removed 'body' property entirely to save tokens.
             const classification = await classifyEmail({
-            subject,
-            sender,
-            snippet
-        });
-        category = classification.category;
-        isUrgent = classification.isUrgent;
-        console.log(`AI Classified as: ${category}`);
+                subject,
+                sender,
+                snippet
+            });
+            category = classification.category;
+            isUrgent = classification.isUrgent;
+            reasoning = classification.reasoning;
+            console.log(`AI Classified as: ${category}`);
     }
 
     // 4. Move the email
@@ -106,7 +96,8 @@ export async function POST(req: NextRequest) {
         subject,
         category: category,
         isUrgent: isUrgent,
-        snippet, // Save snippet so we can correct it later if needed
+        snippet, 
+        reasoning: reasoning || "No reasoning provided", // Store the AI's explanation
         timestamp: new Date()
     });
 

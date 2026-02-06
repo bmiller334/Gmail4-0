@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink } from "lucide-react"; 
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit } from "lucide-react"; 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,11 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
     Tabs,
     TabsContent,
     TabsList,
@@ -48,6 +53,13 @@ import {
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import Link from "next/link";
+
+// New Components
+import { WeatherWidget } from "./weather-widget";
+import { CommodityTicker } from "./commodity-ticker";
+import { ShiftNotes } from "./shift-notes";
+import { CommunityEvents } from "./community-events";
 
 // Types
 type DashboardStats = {
@@ -71,6 +83,7 @@ type EmailLog = {
     snippet?: string;
     timestamp: any;
     isUrgent?: boolean;
+    reasoning?: string;
 };
 
 type SenderRule = {
@@ -171,10 +184,13 @@ export default function Dashboard() {
               });
               fetchData();
           } else {
-              toast({ variant: "destructive", title: "Cleanup Failed", description: data.error });
+              // Safety check for error structure
+              const errorMessage = data?.error || data?.message || "Unknown error";
+              toast({ variant: "destructive", title: "Cleanup Failed", description: errorMessage });
           }
-      } catch (err) {
-          toast({ variant: "destructive", title: "Error", description: "Failed to connect to server." });
+      } catch (err: any) {
+           const message = err?.message || "Failed to connect to server.";
+          toast({ variant: "destructive", title: "Error", description: message });
       } finally {
           setCleaning(false);
       }
@@ -274,11 +290,10 @@ export default function Dashboard() {
   const maxCategoryCount = stats ? Math.max(...Object.values(stats.categories || {}), 1) : 1;
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-            <h2 className="text-3xl font-bold tracking-tight">Inbox Zero Dashboard</h2>
-            <p className="text-muted-foreground">Manage your AI email assistant.</p>
+           {/* Header removed as requested */}
         </div>
         
         <div className="flex items-center space-x-4">
@@ -286,6 +301,11 @@ export default function Dashboard() {
                 <Activity className="h-4 w-4" />
                 <span>{loading ? "Updating..." : "System Active"}</span>
             </div>
+            <Link href="/logs" passHref>
+                <Button variant="outline" size="icon" title="System Logs">
+                    <Terminal className="h-4 w-4" />
+                </Button>
+            </Link>
             <Button variant="outline" size="icon" onClick={fetchData}>
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
@@ -296,9 +316,17 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Top Row: Operational Context */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <WeatherWidget />
+          <CommodityTicker />
+          <CommunityEvents />
+          <ShiftNotes />
+      </div>
+
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="overview">Email Overview</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
           <TabsTrigger value="rules">Sender Rules</TabsTrigger>
         </TabsList>
@@ -448,7 +476,20 @@ export default function Dashboard() {
                                     <TableCell className="max-w-[200px] truncate" title={log.sender}>{log.sender}</TableCell>
                                     <TableCell>
                                         <div className="flex items-center space-x-2">
-                                        <Badge variant="secondary">{log.category}</Badge>
+                                        <Badge variant="secondary" className="gap-1">
+                                            {log.category}
+                                            {log.reasoning && (
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <BrainCircuit className="w-3 h-3 text-muted-foreground hover:text-primary cursor-help" />
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-80 text-sm">
+                                                        <div className="font-semibold mb-1">AI Reasoning:</div>
+                                                        <p className="text-muted-foreground">{log.reasoning}</p>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            )}
+                                        </Badge>
                                         <Dialog>
                                             <DialogTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100">

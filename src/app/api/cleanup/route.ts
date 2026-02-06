@@ -8,7 +8,7 @@ export const maxDuration = 3000;
 
 export async function POST() {
   try {
-    const gmail = await getGmailClient();
+    const gmail = await getGmailClient(); // ERROR: was missing () in previous version
     
     // Fetch up to 50 unread emails from INBOX (Reasonable batch size for one request)
     const response = await gmail.users.messages.list({
@@ -33,21 +33,20 @@ export async function POST() {
             const messageDetails = await gmail.users.messages.get({
                 userId: 'me',
                 id: msg.id,
-                format: 'full',
+                format: 'metadata', // Use metadata for lighter payload
+                metadataHeaders: ['Subject', 'From'],
             });
 
             const headers = messageDetails.data.payload?.headers;
             const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
             const sender = headers?.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
             const snippet = messageDetails.data.snippet || '';
-            const bodyContent = snippet; 
-
+            
             // Classify
             const classification = await classifyEmail({
                 subject,
                 sender,
                 snippet,
-                body: bodyContent
             });
 
             // Move
@@ -60,7 +59,9 @@ export async function POST() {
                 subject,
                 category: classification.category,
                 isUrgent: classification.isUrgent,
-                timestamp: new Date()
+                timestamp: new Date(),
+                snippet,
+                reasoning: classification.reasoning
             });
 
             processedCount++;

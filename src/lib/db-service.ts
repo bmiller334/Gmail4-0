@@ -22,6 +22,7 @@ export const COLLECTION_LOGS = 'email_logs';
 export const COLLECTION_CORRECTIONS = 'email_corrections';
 export const COLLECTION_URGENCY_CORRECTIONS = 'email_urgency_corrections'; // New collection
 export const COLLECTION_RULES = 'email_rules';
+export const COLLECTION_NOTES = 'store_notes'; // New collection for shift notes
 
 export type EmailLog = {
     id: string; // Message ID
@@ -31,6 +32,7 @@ export type EmailLog = {
     timestamp: Date;
     isUrgent: boolean;
     snippet?: string; // Added snippet to logs so we can use it for training
+    reasoning?: string; // New field for AI reasoning
 };
 
 export type EmailCorrection = {
@@ -60,6 +62,14 @@ export type SenderRule = {
     category: string;
     createdAt: Date;
 };
+
+export type StoreNote = {
+    id: string;
+    content: string;
+    createdAt: Date;
+    author: string; // Could be 'Manager', 'User', etc.
+};
+
 
 export async function logEmailProcessing(data: EmailLog) {
     try {
@@ -336,5 +346,45 @@ export async function findSenderPatterns(minOccurrences = 5, confidenceThreshold
     } catch (error) {
         console.error("Error finding patterns:", error);
         return [];
+    }
+}
+
+// --- Store Notes ---
+
+export async function addStoreNote(content: string) {
+    try {
+        const docRef = db.collection(COLLECTION_NOTES).doc();
+        await docRef.set({
+            id: docRef.id,
+            content,
+            createdAt: new Date(),
+            author: 'Manager' // Placeholder for now
+        });
+        return docRef.id;
+    } catch (error) {
+        console.error("Error adding note:", error);
+        throw error;
+    }
+}
+
+export async function getStoreNotes() {
+    try {
+        const snapshot = await db.collection(COLLECTION_NOTES)
+            .orderBy('createdAt', 'desc')
+            .limit(20)
+            .get();
+        return snapshot.docs.map(doc => doc.data() as StoreNote);
+    } catch (error) {
+        console.error("Error fetching notes:", error);
+        return [];
+    }
+}
+
+export async function deleteStoreNote(id: string) {
+    try {
+        await db.collection(COLLECTION_NOTES).doc(id).delete();
+    } catch (error) {
+        console.error("Error deleting note:", error);
+        throw error;
     }
 }

@@ -31,6 +31,13 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Fix for 'eval' issues in development mode (usually Webpack related)
+  webpack: (config, { dev }) => {
+    if (dev) {
+        config.devtool = 'cheap-module-source-map';
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
