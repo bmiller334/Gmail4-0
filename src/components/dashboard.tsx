@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles } from "lucide-react"; 
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink } from "lucide-react"; 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input";
@@ -434,7 +434,15 @@ export default function Dashboard() {
                                 <TableRow key={log.id}>
                                     <TableCell className="font-medium">
                                         <div className="flex flex-col space-y-1">
-                                            <span>{log.subject}</span>
+                                            <a 
+                                                href={`https://mail.google.com/mail/u/0/#all/${log.id}`} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="hover:underline flex items-center gap-2 group text-primary"
+                                            >
+                                                {log.subject}
+                                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </a>
                                         </div>
                                     </TableCell>
                                     <TableCell className="max-w-[200px] truncate" title={log.sender}>{log.sender}</TableCell>
