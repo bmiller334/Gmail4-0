@@ -1,20 +1,32 @@
 import { NextResponse } from "next/server";
 import { classifyEmail } from "@/ai/email-classifier";
 import { moveEmailToCategory, getGmailClient } from "@/lib/gmail-service";
-import { logEmailProcessing } from "@/lib/db-service";
+import { logEmailProcessing, getStats } from "@/lib/db-service";
 
 // Increase timeout to (3000 seconds) for batch processing
 export const maxDuration = 3000; 
+const HARD_LIMIT = 1300;
 
 export async function POST() {
   try {
-    const gmail = await getGmailClient(); // ERROR: was missing () in previous version
+    // 0. Check Quota First
+    const stats = await getStats(1); // Get today's stats
+    const currentUsage = stats?.totalProcessed || 0;
+
+    if (currentUsage >= HARD_LIMIT) {
+        return NextResponse.json({ 
+            message: `Quota exceeded (${currentUsage}/${HARD_LIMIT}). Cleanup aborted to prevent overages.`, 
+            error: "Quota Exceeded" 
+        }, { status: 429 });
+    }
+
+    const gmail = await getGmailClient();
     
-    // Fetch up to 50 unread emails from INBOX (Reasonable batch size for one request)
+    // REDUCED: Fetch only 20 emails to avoid quota explosions
     const response = await gmail.users.messages.list({
         userId: 'me',
         q: 'label:INBOX is:unread',
-        maxResults: 50, 
+        maxResults: 20, 
     });
 
     const messages = response.data.messages;
@@ -33,7 +45,7 @@ export async function POST() {
             const messageDetails = await gmail.users.messages.get({
                 userId: 'me',
                 id: msg.id,
-                format: 'metadata', // Use metadata for lighter payload
+                format: 'metadata',
                 metadataHeaders: ['Subject', 'From'],
             });
 
@@ -71,15 +83,13 @@ export async function POST() {
         }
     };
 
-    // Process in chunks to control concurrency (avoid hitting API rate limits)
-    const CONCURRENCY_LIMIT = 5;
-    const chunks = [];
-    for (let i = 0; i < messages.length; i += CONCURRENCY_LIMIT) {
-        chunks.push(messages.slice(i, i + CONCURRENCY_LIMIT));
-    }
-
-    for (const chunk of chunks) {
-        await Promise.all(chunk.map(msg => processMessage(msg)));
+    // REDUCED: Process SEQUENTIALLY (1 at a time) to save quota
+    const CONCURRENCY_LIMIT = 1;
+    
+    for (const msg of messages) {
+        await processMessage(msg);
+        // ADDED: 2-second delay between requests to stay under 15 RPM limit
+        await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     return NextResponse.json({ 

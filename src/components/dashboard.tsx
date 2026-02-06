@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit } from "lucide-react"; 
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench } from "lucide-react"; 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input";
@@ -100,6 +100,17 @@ type RuleSuggestion = {
     confidence: number;
 };
 
+// Personality: Dynamic Greetings
+const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 5) return "Burning the midnight oil?";
+    if (hour < 11) return "Good Morning, Syracuse.";
+    if (hour < 14) return "Busy Lunch Rush?";
+    if (hour < 18) return "Good Afternoon.";
+    if (hour < 22) return "Evening Shift Mode.";
+    return "Time to close up shop?";
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>([]);
@@ -112,6 +123,9 @@ export default function Dashboard() {
   const [cleaning, setCleaning] = useState(false);
   const [correcting, setCorrecting] = useState<string | null>(null); 
   
+  // Date State for Hydration safety
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -159,6 +173,9 @@ export default function Dashboard() {
   }, [searchTerm, categoryFilter]);
 
   useEffect(() => {
+    // Set date on mount
+    setCurrentDate(new Date());
+
     // Initial fetch
     fetchData();
     // Poll every 30s
@@ -291,37 +308,55 @@ export default function Dashboard() {
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-           {/* Header removed as requested */}
-        </div>
-        
-        <div className="flex items-center space-x-4">
-             <div className="flex items-center space-x-2 text-sm text-muted-foreground hidden md:flex">
-                <Activity className="h-4 w-4" />
-                <span>{loading ? "Updating..." : "System Active"}</span>
-            </div>
-            <Link href="/logs" passHref>
-                <Button variant="outline" size="icon" title="System Logs">
-                    <Terminal className="h-4 w-4" />
-                </Button>
-            </Link>
-            <Button variant="outline" size="icon" onClick={fetchData}>
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button onClick={handleCleanup} disabled={cleaning}>
-                {cleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
-                {cleaning ? "Cleaning..." : "Clean Inbox"}
-            </Button>
-        </div>
-      </div>
+      {/* 
+          Main Header / Command Center Widgets 
+          Weather Widget acts as the "Hero" header spanning full width
+      */}
+      <div className="flex flex-col gap-4">
+          <div className="flex justify-between items-end mb-2">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                        {/* Personality Injection: Dynamic Greeting */}
+                        {getGreeting()}
+                    </h2>
+                    <p className="text-muted-foreground flex items-center gap-2 mt-1">
+                        <Wrench className="h-4 w-4 opacity-50" />
+                        {currentDate ? currentDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : "Loading date..."}
+                        <span className="opacity-30">|</span> 
+                        Ready for the day?
+                    </p>
+                </div>
+                
+                <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground hidden md:flex">
+                        <Activity className="h-4 w-4" />
+                        <span>{loading ? "Updating..." : "System Active"}</span>
+                    </div>
+                    <Link href="/logs" passHref>
+                        <Button variant="outline" size="icon" title="System Logs">
+                            <Terminal className="h-4 w-4" />
+                        </Button>
+                    </Link>
+                    <Button variant="outline" size="icon" onClick={fetchData}>
+                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    </Button>
+                    <Button onClick={handleCleanup} disabled={cleaning}>
+                        {cleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
+                        {cleaning ? "Cleaning..." : "Clean Inbox"}
+                    </Button>
+                </div>
+          </div>
 
-      {/* Top Row: Operational Context */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <WeatherWidget />
-          <CommodityTicker />
-          <CommunityEvents />
-          <ShiftNotes />
+          <div className="w-full">
+              <WeatherWidget />
+          </div>
+
+          {/* Secondary Operational Widgets Below Weather */}
+          <div className="grid gap-4 md:grid-cols-3">
+              <CommodityTicker />
+              <CommunityEvents />
+              <ShiftNotes />
+          </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
@@ -333,7 +368,7 @@ export default function Dashboard() {
 
         <TabsContent value="overview" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card>
+                <Card className="hover:scale-[1.01] transition-transform duration-200 shadow-md hover:shadow-lg border-primary/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Today's Volume</CardTitle>
                     <Mail className="h-4 w-4 text-muted-foreground" />
@@ -343,7 +378,7 @@ export default function Dashboard() {
                     <p className="text-xs text-muted-foreground">Emails processed today</p>
                 </CardContent>
                 </Card>
-                <Card>
+                <Card className="hover:scale-[1.01] transition-transform duration-200 shadow-md hover:shadow-lg border-primary/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Spam Filtered</CardTitle>
                     <AlertTriangle className="h-4 w-4 text-muted-foreground" />
@@ -356,7 +391,7 @@ export default function Dashboard() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4">
+                <Card className="col-span-4 hover:shadow-md transition-shadow">
                 <CardHeader>
                     <CardTitle>Weekly Activity</CardTitle>
                     <CardDescription>Email volume over the last 7 days.</CardDescription>
@@ -370,7 +405,15 @@ export default function Dashboard() {
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(value) => new Date(value).toLocaleDateString(undefined, { weekday: 'short' })}
+                        tickFormatter={(value) => {
+                            // Fix: Use UTC components or timezone-agnostic parsing to prevent off-by-one errors
+                            // "YYYY-MM-DD" parsed by `new Date()` is UTC midnight. 
+                            // `toLocaleDateString` shifts it to local time (e.g. previous day 7pm).
+                            // Solution: Append 'T00:00:00' to force local midnight context for formatting
+                            const [year, month, day] = value.split('-');
+                            const date = new Date(Number(year), Number(month) - 1, Number(day));
+                            return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+                        }}
                         />
                         <YAxis
                         stroke="#888888"
@@ -389,7 +432,7 @@ export default function Dashboard() {
                 </CardContent>
                 </Card>
                 
-                <Card className="col-span-3">
+                <Card className="col-span-3 hover:shadow-md transition-shadow">
                     <CardHeader>
                         <CardTitle>Categories (Today)</CardTitle>
                         <CardDescription>Distribution of incoming emails.</CardDescription>
@@ -403,7 +446,16 @@ export default function Dashboard() {
                             return (
                                 <div key={category} className="space-y-1">
                                     <div className="flex items-center justify-between text-sm">
-                                        <span className="font-medium">{category}</span>
+                                        {/* Added Link to Gmail Label */}
+                                        <a 
+                                            href={`https://mail.google.com/mail/u/0/#label/${encodeURIComponent(category)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-medium hover:underline hover:text-primary transition-colors cursor-pointer"
+                                            title={`Open ${category} in Gmail`}
+                                        >
+                                            {category}
+                                        </a>
                                         <span className="text-muted-foreground">{count}</span>
                                     </div>
                                     <Progress value={percentage} className="h-2" />
@@ -613,7 +665,7 @@ export default function Dashboard() {
                              <Input 
                                 placeholder="e.g. @bankofamerica.com" 
                                 value={newRuleSender}
-                                onChange={(e) => setNewRuleSender(e.target.value)}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                              />
                          </div>
                          <div className="space-y-2 w-[200px]">

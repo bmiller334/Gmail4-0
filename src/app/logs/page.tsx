@@ -4,8 +4,9 @@ import { useEffect, useState, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Terminal, ChevronDown } from 'lucide-react';
+import { RefreshCw, Terminal, ChevronDown, Zap, BarChart3, TrendingUp, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from "@/components/ui/progress";
 
 type LogEntry = {
     timestamp: string;
@@ -30,6 +31,10 @@ export default function LogsPage() {
     const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoRefresh, setAutoRefresh] = useState(false);
+    
+    // Usage Stats
+    const [totalProcessed, setTotalProcessed] = useState(0);
+    const [usageLoading, setUsageLoading] = useState(true);
 
     const fetchLogs = async (token?: string, append = false) => {
         setLoading(true);
@@ -59,30 +64,64 @@ export default function LogsPage() {
         }
     };
 
+    const fetchUsage = async () => {
+        setUsageLoading(true);
+        try {
+            const res = await fetch('/api/stats');
+            const data = await res.json();
+            if (data.stats) {
+                setTotalProcessed(data.stats.totalProcessed || 0);
+            }
+        } catch (error) {
+            console.error("Failed to fetch stats", error);
+        } finally {
+            setUsageLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchLogs();
+        fetchUsage();
     }, []);
 
     // Simple polling for "streaming" effect if enabled
     useEffect(() => {
         if (!autoRefresh) return;
         const interval = setInterval(() => {
-            // In a real stream we'd fetch only new ones, but for simplicity we just refresh the top
             fetchLogs(); 
+            fetchUsage();
         }, 5000);
         return () => clearInterval(interval);
     }, [autoRefresh]);
 
+    // Quota Constants & Projections
+    const DAILY_LIMIT = 1500;
+    const usagePercent = Math.min((totalProcessed / DAILY_LIMIT) * 100, 100);
+    const remaining = DAILY_LIMIT - totalProcessed;
+
+    // Calculate Projection
+    const now = new Date();
+    // Hours passed since midnight (0.0 to 24.0)
+    const hoursPassed = now.getHours() + (now.getMinutes() / 60);
+    // Prevent division by zero or weird early morning spikes
+    const effectiveHours = Math.max(hoursPassed, 1); 
+    const hourlyRate = totalProcessed / effectiveHours;
+    const projectedTotal = Math.round(hourlyRate * 24);
+    
+    const isProjectedOverLimit = projectedTotal > DAILY_LIMIT;
+
     return (
-        <div className="container mx-auto p-6 max-w-6xl h-screen flex flex-col">
-            <div className="flex justify-between items-center mb-6">
+        <div className="container mx-auto p-6 max-w-7xl h-screen flex flex-col gap-6">
+            
+            {/* Header Area */}
+            <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-900 rounded-lg">
                         <Terminal className="w-6 h-6 text-green-400" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">System Logs</h1>
-                        <p className="text-muted-foreground text-sm">Live stream from Google Cloud Logging</p>
+                        <h1 className="text-2xl font-bold tracking-tight">System Logs & Metrics</h1>
+                        <p className="text-muted-foreground text-sm">Monitoring Gemini Usage & Cloud Run Logs</p>
                     </div>
                 </div>
                 <div className="flex gap-2">
@@ -97,8 +136,10 @@ export default function LogsPage() {
                 </div>
             </div>
 
-            <Card className="flex-1 overflow-hidden bg-slate-950 border-slate-800 text-slate-300 font-mono text-sm shadow-2xl">
-                <div className="h-full flex flex-col">
+            <div className="flex flex-col lg:flex-row gap-6 h-full min-h-0">
+                
+                {/* Main Log Window - Takes up 2/3 space */}
+                <Card className="flex-1 lg:flex-[2] overflow-hidden bg-slate-950 border-slate-800 text-slate-300 font-mono text-sm shadow-2xl flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2 bg-slate-900/50 border-b border-slate-800 text-xs text-slate-500 uppercase tracking-widest">
                         <span>Timestamp</span>
                         <span>Severity / Message</span>
@@ -127,7 +168,7 @@ export default function LogsPage() {
                             
                             {logs.length === 0 && !loading && (
                                 <div className="text-center py-20 text-slate-600">
-                                    No logs found. (Check your Cloud Logging permissions or if any logs exist)
+                                    No logs found.
                                 </div>
                             )}
 
@@ -147,8 +188,75 @@ export default function LogsPage() {
                             )}
                         </div>
                     </ScrollArea>
+                </Card>
+
+                {/* Usage Tracker Sidebar - Takes up 1/3 space */}
+                <div className="lg:flex-1 space-y-6">
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                <Zap className="h-4 w-4 text-amber-500" />
+                                Gemini Free Tier Quota
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-6">
+                                <div>
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="text-muted-foreground">Calls Today</span>
+                                        <span className="font-medium">{totalProcessed} / {DAILY_LIMIT}</span>
+                                    </div>
+                                    <Progress value={usagePercent} className={`h-2 ${usagePercent > 90 ? 'bg-red-100' : ''}`} indicatorClassName={usagePercent > 90 ? 'bg-red-500' : usagePercent > 75 ? 'bg-amber-500' : 'bg-green-500'} />
+                                    <p className="text-xs text-muted-foreground mt-1.5">
+                                        {remaining > 0 ? `${remaining} calls remaining` : 'Quota Exceeded!'}
+                                    </p>
+                                </div>
+
+                                <div className="pt-4 border-t space-y-3">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                            <Clock className="h-3 w-3" />
+                                            <span>Current Rate</span>
+                                        </div>
+                                        <span className="font-medium">~{Math.round(hourlyRate)} calls/hr</span>
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                            <TrendingUp className="h-3 w-3" />
+                                            <span>EOD Projection</span>
+                                        </div>
+                                        <span className={`font-bold ${isProjectedOverLimit ? 'text-red-500' : 'text-green-600'}`}>
+                                            {projectedTotal} calls
+                                        </span>
+                                    </div>
+                                    
+                                    {isProjectedOverLimit && (
+                                        <p className="text-[10px] text-red-500 bg-red-50 p-2 rounded border border-red-100">
+                                            Warning: At this rate, you will exceed your daily quota before midnight.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                <BarChart3 className="h-4 w-4" />
+                                Est. Cost
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">$0.00</div>
+                            <p className="text-xs text-muted-foreground">
+                                Free Tier Active (Gemini 2.5 Flash)
+                            </p>
+                        </CardContent>
+                    </Card>
                 </div>
-            </Card>
+            </div>
         </div>
     );
 }

@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyEmail } from "@/ai/email-classifier";
 import { moveEmailToCategory, getGmailClient } from "@/lib/gmail-service";
-import { logEmailProcessing, getSenderRules } from "@/lib/db-service";
+import { logEmailProcessing, getSenderRules, getStats } from "@/lib/db-service";
+
+const HARD_LIMIT = 1300;
 
 export async function POST(req: NextRequest) {
   try {
+    // 0. Check Quota First
+    const stats = await getStats(1); // Get today's stats
+    const currentUsage = stats?.totalProcessed || 0;
+
+    if (currentUsage >= HARD_LIMIT) {
+        console.warn(`[Quota] Daily limit reached (${currentUsage}/${HARD_LIMIT}). Skipping processing.`);
+        // Return 200 to acknowledge Pub/Sub so it stops retrying.
+        return NextResponse.json({ status: "skipped", reason: "quota_exceeded" });
+    }
+
     // 1. Parse the incoming Pub/Sub message
     const body = await req.json();
     
@@ -55,7 +67,7 @@ export async function POST(req: NextRequest) {
     const headers = messageDetails.payload?.headers;
     const subject = headers?.find(h => h.name === 'Subject')?.value || 'No Subject';
     const sender = headers?.find(h => h.name === 'From')?.value || 'Unknown Sender';
-    const snippet = messageDetails.snippet || '';
+    const snippet = messageDetails.data.snippet || '';
     
     console.log(`Processing email: ${subject} from ${sender}`);
 
@@ -74,7 +86,6 @@ export async function POST(req: NextRequest) {
             reasoning = `Matched custom rule for sender: ${matchedRule.sender}`;
     } else {
             // 3b. Fallback to AI Classification
-            // OPTIMIZATION: Removed 'body' property entirely to save tokens.
             const classification = await classifyEmail({
                 subject,
                 sender,
