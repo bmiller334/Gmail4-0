@@ -1,4 +1,4 @@
-# Project Context: AI-Powered Inbox Zero Manager (Syracuse Hardware Command Center)
+# Project Context: AI-Powered Inbox Zero Manager (Command Center)
 
 **For Future AI Agents & Developers:**
 This document serves as the primary context source for the current state of the project. It outlines architectural decisions, specific workarounds implemented to bypass Google Cloud limitations for personal accounts, and the current feature set.
