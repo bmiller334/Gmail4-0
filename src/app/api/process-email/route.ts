@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyEmail } from "@/ai/email-classifier";
 import { moveEmailToCategory, getGmailClient } from "@/lib/gmail-service";
-import { logEmailProcessing } from "@/lib/db-service";
+import { logEmailProcessing, getSenderRules } from "@/lib/db-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,41 +43,72 @@ export async function POST(req: NextRequest) {
         const messageDetails = await gmail.users.messages.get({
             userId: 'me',
             id: messageId,
-            format: 'full',
+            format: 'minimal', // CHANGED: 'full' -> 'minimal' to save bandwidth, we only need snippet & headers
         });
-
-        const headers = messageDetails.data.payload?.headers;
-        const subject = headers?.find(h => h.name === 'Subject')?.value || 'No Subject';
-        const sender = headers?.find(h => h.name === 'From')?.value || 'Unknown Sender';
-        const snippet = messageDetails.data.snippet || '';
         
-        let bodyContent = snippet; 
-        
-        console.log(`Processing email: ${subject} from ${sender}`);
-
-        // 3. Classify the email
-        const classification = await classifyEmail({
-            subject,
-            sender,
-            snippet,
-            body: bodyContent
-        });
-
-        console.log(`Classified as: ${classification.category}`);
-
-        // 4. Move the email
-        await moveEmailToCategory(messageId, classification.category);
-        
-        // 5. Store stats in Firestore
-        await logEmailProcessing({
-            id: messageId,
-            sender,
-            subject,
-            category: classification.category,
-            isUrgent: classification.isUrgent,
-            timestamp: new Date()
-        });
+        // Note: 'minimal' format only includes snippet and core headers usually. 
+        // If we need specific headers, we might need 'metadata'.
+        // Let's stick to 'full' but ignore body content in logic to be safe, 
+        // OR use 'metadata' which is lighter.
+        // Reverting to 'full' for safety but explicitly NOT passing body to AI.
     }
+
+    // Retrying with 'metadata' format which is much lighter than 'full'
+    // but contains snippet and headers.
+    const messageDetailsResponse = await gmail.users.messages.get({
+        userId: 'me',
+        id: messages[0].id!,
+        format: 'metadata', // lighter payload
+        metadataHeaders: ['Subject', 'From'], // only fetch what we need
+    });
+    
+    const messageDetails = messageDetailsResponse.data;
+    const messageId = messageDetails.id!;
+
+    const headers = messageDetails.payload?.headers;
+    const subject = headers?.find(h => h.name === 'Subject')?.value || 'No Subject';
+    const sender = headers?.find(h => h.name === 'From')?.value || 'Unknown Sender';
+    const snippet = messageDetails.snippet || '';
+    
+    console.log(`Processing email: ${subject} from ${sender}`);
+
+    let category = null;
+    let isUrgent = false;
+
+    // 3a. Check Deterministic Rules First
+    const rules = await getSenderRules();
+    const matchedRule = rules.find(r => sender.toLowerCase().includes(r.sender.toLowerCase()));
+    
+    if (matchedRule) {
+            console.log(`Matched rule: ${matchedRule.sender} -> ${matchedRule.category}`);
+            category = matchedRule.category;
+            isUrgent = false; // Default for rules unless we add an 'urgent' flag to rules too
+    } else {
+            // 3b. Fallback to AI Classification
+            // OPTIMIZATION: Removed 'body' property entirely to save tokens.
+            const classification = await classifyEmail({
+            subject,
+            sender,
+            snippet
+        });
+        category = classification.category;
+        isUrgent = classification.isUrgent;
+        console.log(`AI Classified as: ${category}`);
+    }
+
+    // 4. Move the email
+    await moveEmailToCategory(messageId, category);
+    
+    // 5. Store stats in Firestore
+    await logEmailProcessing({
+        id: messageId,
+        sender,
+        subject,
+        category: category,
+        isUrgent: isUrgent,
+        snippet, // Save snippet so we can correct it later if needed
+        timestamp: new Date()
+    });
 
     return NextResponse.json({ status: "success" });
 

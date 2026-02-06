@@ -8,11 +8,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { EMAIL_CATEGORIES } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser } from "lucide-react"; 
-// Swapped Broom for Eraser just in case, though Broom should exist.
+import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles } from "lucide-react"; 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button"; // Fixed import path
+import { Button } from "@/components/ui/button"; 
+import { Input } from "@/components/ui/input";
 import {
     Table,
     TableBody,
@@ -23,8 +23,33 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "@/components/ui/tabs";
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
-// Types for our stats
+// Types
 type DashboardStats = {
     totalProcessed: number;
     categories: Record<string, number>;
@@ -32,37 +57,101 @@ type DashboardStats = {
     lastUpdated?: any;
 };
 
+type WeeklyStat = {
+    date: string;
+    totalProcessed: number;
+    [key: string]: any;
+}
+
 type EmailLog = {
     id: string;
     sender: string;
     subject: string;
     category: string;
+    snippet?: string;
     timestamp: any;
     isUrgent?: boolean;
 };
 
+type SenderRule = {
+    id: string;
+    sender: string;
+    category: string;
+    createdAt: any;
+};
+
+type RuleSuggestion = {
+    sender: string;
+    category: string;
+    count: number;
+    confidence: number;
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>([]);
   const [logs, setLogs] = useState<EmailLog[]>([]);
+  const [rules, setRules] = useState<SenderRule[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
+  const [correcting, setCorrecting] = useState<string | null>(null); 
+  
+  // Filters
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+
+  // New Rule Form
+  const [newRuleSender, setNewRuleSender] = useState("");
+  const [newRuleCategory, setNewRuleCategory] = useState<string>(EMAIL_CATEGORIES[0]);
+  const [isAddingRule, setIsAddingRule] = useState(false);
+
   const { toast } = useToast();
 
   const fetchData = async () => {
     setLoading(true);
     try {
-        const res = await fetch('/api/stats');
+        const queryParams = new URLSearchParams();
+        if (searchTerm) queryParams.set('search', searchTerm);
+        if (categoryFilter && categoryFilter !== 'All') queryParams.set('category', categoryFilter);
+
+        const res = await fetch(`/api/stats?${queryParams.toString()}`);
         const data = await res.json();
         setStats(data.stats);
+        setWeeklyStats(data.weeklyStats || []);
         setLogs(data.logs || []);
         setInsights(data.insights || []);
+        setRules(data.rules || []);
+
+        // Also fetch suggestions
+        const suggestionsRes = await fetch('/api/rules/suggestions');
+        const suggestionsData = await suggestionsRes.json();
+        setSuggestions(suggestionsData.suggestions || []);
+
     } catch (err) {
         console.error("Failed to fetch dashboard data", err);
     } finally {
         setLoading(false);
     }
   };
+
+  // Debounce search
+  useEffect(() => {
+      const timer = setTimeout(() => {
+          fetchData();
+      }, 500);
+      return () => clearTimeout(timer);
+  }, [searchTerm, categoryFilter]);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchData();
+    // Poll every 30s
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []); // Only run on mount, internal effect handles dependencies
 
   const handleCleanup = async () => {
       setCleaning(true);
@@ -80,41 +169,120 @@ export default function Dashboard() {
                   title: "Cleanup Complete",
                   description: data.message,
               });
-              // Refresh data after cleanup
               fetchData();
           } else {
-              toast({
-                  variant: "destructive",
-                  title: "Cleanup Failed",
-                  description: data.error || "An error occurred.",
-              });
+              toast({ variant: "destructive", title: "Cleanup Failed", description: data.error });
           }
       } catch (err) {
-          toast({
-              variant: "destructive",
-              title: "Error",
-              description: "Failed to connect to server.",
-          });
+          toast({ variant: "destructive", title: "Error", description: "Failed to connect to server." });
       } finally {
           setCleaning(false);
       }
   };
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const handleCorrection = async (log: EmailLog, newCategory: string) => {
+    if (newCategory === log.category) return;
+    
+    setCorrecting(log.id);
+    try {
+        const res = await fetch('/api/correct-category', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: log.id,
+                sender: log.sender,
+                subject: log.subject,
+                snippet: log.snippet,
+                wrongCategory: log.category,
+                correctCategory: newCategory
+            })
+        });
+
+        if (res.ok) {
+            toast({ title: "Correction Logged", description: "The AI will learn from this correction." });
+            setLogs(logs.map(l => l.id === log.id ? { ...l, category: newCategory } : l));
+        } else {
+             toast({ variant: "destructive", title: "Correction Failed" });
+        }
+    } catch (err) {
+        toast({ variant: "destructive", title: "Error" });
+    } finally {
+        setCorrecting(null);
+    }
+  };
+
+  const handleUrgencyCorrection = async (log: EmailLog, shouldBeUrgent: boolean) => {
+    try {
+        const res = await fetch('/api/correct-urgency', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: log.id,
+                sender: log.sender,
+                subject: log.subject,
+                snippet: log.snippet,
+                wasUrgent: log.isUrgent,
+                shouldBeUrgent
+            })
+        });
+
+        if (res.ok) {
+            toast({ title: "Urgency Updated", description: "AI feedback recorded." });
+            setLogs(logs.map(l => l.id === log.id ? { ...l, isUrgent: shouldBeUrgent } : l));
+        } else {
+            toast({ variant: "destructive", title: "Update Failed" });
+        }
+    } catch (err) {
+        toast({ variant: "destructive", title: "Error" });
+    }
+  };
+
+  const handleAddRule = async (sender = newRuleSender, category = newRuleCategory) => {
+      if (!sender) return;
+      setIsAddingRule(true);
+      try {
+          const res = await fetch('/api/rules', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sender: sender, category: category })
+          });
+          
+          if (res.ok) {
+              toast({ title: "Rule Added", description: `Emails from "${sender}" will be moved to ${category}.` });
+              if (sender === newRuleSender) setNewRuleSender("");
+              fetchData(); // Refresh rules list
+          }
+      } catch (err) {
+          toast({ variant: "destructive", title: "Error adding rule" });
+      } finally {
+          setIsAddingRule(false);
+      }
+  };
+
+  const handleDeleteRule = async (id: string) => {
+      try {
+          const res = await fetch(`/api/rules?id=${id}`, { method: 'DELETE' });
+          if (res.ok) {
+              toast({ title: "Rule Deleted" });
+              setRules(rules.filter(r => r.id !== id));
+          }
+      } catch (err) {
+          toast({ variant: "destructive", title: "Error deleting rule" });
+      }
+  };
 
   const maxCategoryCount = stats ? Math.max(...Object.values(stats.categories || {}), 1) : 1;
-  const sortedSenders = stats ? Object.entries(stats.senders || {}).sort((a,b) => b[1] - a[1]).slice(0, 5) : [];
 
   return (
     <div className="p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Inbox Zero Dashboard</h2>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h2 className="text-3xl font-bold tracking-tight">Inbox Zero Dashboard</h2>
+            <p className="text-muted-foreground">Manage your AI email assistant.</p>
+        </div>
+        
         <div className="flex items-center space-x-4">
-             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+             <div className="flex items-center space-x-2 text-sm text-muted-foreground hidden md:flex">
                 <Activity className="h-4 w-4" />
                 <span>{loading ? "Updating..." : "System Active"}</span>
             </div>
@@ -128,144 +296,324 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Volume</CardTitle>
-            <Mail className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalProcessed || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Emails processed today
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Spam Filtered</CardTitle>
-             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-             <div className="text-2xl font-bold">{stats?.categories?.['Spam'] || 0}</div>
-             <p className="text-xs text-muted-foreground">
-               Auto-archived
-             </p>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="activity">Activity Log</TabsTrigger>
+          <TabsTrigger value="rules">Sender Rules</TabsTrigger>
+        </TabsList>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Email Categories</CardTitle>
-            <CardDescription>
-              Distribution of incoming emails today.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {EMAIL_CATEGORIES.map((category) => {
-                  const count = stats?.categories?.[category] || 0;
-                  const percentage = Math.round((count / maxCategoryCount) * 100);
-                  
-                  return (
-                    <div key={category} className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                             <span className="font-medium">{category}</span>
-                             <span className="text-muted-foreground">{count}</span>
-                        </div>
-                        <Progress value={percentage} className="h-2" />
-                    </div>
-                  )
-              })}
+        <TabsContent value="overview" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Today's Volume</CardTitle>
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{stats?.totalProcessed || 0}</div>
+                    <p className="text-xs text-muted-foreground">Emails processed today</p>
+                </CardContent>
+                </Card>
+                <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Spam Filtered</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{stats?.categories?.['Spam'] || 0}</div>
+                    <p className="text-xs text-muted-foreground">Auto-archived</p>
+                </CardContent>
+                </Card>
             </div>
-          </CardContent>
-        </Card>
-        
-        <div className="col-span-3 space-y-4">
-            <Card>
-            <CardHeader>
-                <CardTitle>Top Senders</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <ul className="space-y-2 text-sm">
-                    {sortedSenders.length === 0 && <li className="text-muted-foreground">No data yet.</li>}
-                    {sortedSenders.map(([name, count], i) => (
-                        <li key={i} className="flex justify-between border-b pb-1 last:border-0">
-                            <span className="truncate max-w-[200px]" title={name}>{name.replace(/_/g, '.')}</span>
-                            <span className="font-mono text-muted-foreground">{count}</span>
-                        </li>
-                    ))}
-                </ul>
-            </CardContent>
-            </Card>
 
-            <Card className="bg-muted/50">
-            <CardHeader className="pb-2">
-                <CardTitle className="flex items-center space-x-2 text-base">
-                    <Lightbulb className="h-4 w-4 text-amber-500" />
-                    <span>Insights</span>
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                 <ul className="space-y-2 text-sm">
-                     {insights.length === 0 && <li className="text-muted-foreground">No anomalies detected.</li>}
-                     {insights.map((insight, i) => (
-                         <li key={i} className="flex items-start space-x-2">
-                             <span className="block mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 flex-shrink-0" />
-                             <span>{insight}</span>
-                         </li>
-                     ))}
-                 </ul>
-            </CardContent>
-            </Card>
-        </div>
-      </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                <Card className="col-span-4">
+                <CardHeader>
+                    <CardTitle>Weekly Activity</CardTitle>
+                    <CardDescription>Email volume over the last 7 days.</CardDescription>
+                </CardHeader>
+                <CardContent className="pl-2">
+                    <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={weeklyStats}>
+                        <XAxis
+                        dataKey="date"
+                        stroke="#888888"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => new Date(value).toLocaleDateString(undefined, { weekday: 'short' })}
+                        />
+                        <YAxis
+                        stroke="#888888"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => `${value}`}
+                        />
+                        <Tooltip 
+                             cursor={{fill: 'transparent'}}
+                             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        />
+                        <Bar dataKey="totalProcessed" fill="#0f172a" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                    </ResponsiveContainer>
+                </CardContent>
+                </Card>
+                
+                <Card className="col-span-3">
+                    <CardHeader>
+                        <CardTitle>Categories (Today)</CardTitle>
+                        <CardDescription>Distribution of incoming emails.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                        {EMAIL_CATEGORIES.map((category) => {
+                            const count = stats?.categories?.[category] || 0;
+                            const percentage = Math.round((count / maxCategoryCount) * 100);
+                            
+                            return (
+                                <div key={category} className="space-y-1">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="font-medium">{category}</span>
+                                        <span className="text-muted-foreground">{count}</span>
+                                    </div>
+                                    <Progress value={percentage} className="h-2" />
+                                </div>
+                            )
+                        })}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </TabsContent>
 
-      <div className="grid gap-4 md:grid-cols-1">
-          <Card>
-              <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                  <Table>
-                      <TableHeader>
-                          <TableRow>
-                              <TableHead>Subject</TableHead>
-                              <TableHead>Sender</TableHead>
-                              <TableHead>Category</TableHead>
-                              <TableHead className="text-right">Time</TableHead>
-                          </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                          {logs.length === 0 && (
-                              <TableRow>
-                                  <TableCell colSpan={4} className="text-center text-muted-foreground">No recent emails processed.</TableCell>
-                              </TableRow>
-                          )}
-                          {logs.map((log) => (
-                              <TableRow key={log.id}>
-                                  <TableCell className="font-medium">
-                                      <div className="flex flex-col space-y-1">
-                                          <span>{log.subject}</span>
-                                          {log.isUrgent && <Badge variant="destructive" className="w-fit text-[10px] py-0 px-1">URGENT</Badge>}
-                                      </div>
-                                  </TableCell>
-                                  <TableCell>{log.sender}</TableCell>
-                                  <TableCell>
-                                      <Badge variant="secondary">{log.category}</Badge>
-                                  </TableCell>
-                                  <TableCell className="text-right text-muted-foreground">
-                                      {new Date(log.timestamp._seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                  </TableCell>
-                              </TableRow>
-                          ))}
-                      </TableBody>
-                  </Table>
-              </CardContent>
-          </Card>
-      </div>
+        <TabsContent value="activity" className="space-y-4">
+             <div className="flex items-center justify-between gap-4">
+                 <div className="flex items-center flex-1 gap-2">
+                     <Search className="h-4 w-4 text-muted-foreground" />
+                     <Input 
+                        placeholder="Search subject or sender..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="max-w-sm"
+                     />
+                 </div>
+                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All">All Categories</SelectItem>
+                        {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                 </Select>
+             </div>
+
+             <Card>
+                <CardContent className="p-0">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Subject</TableHead>
+                                <TableHead>Sender</TableHead>
+                                <TableHead>Category</TableHead>
+                                <TableHead>Urgent?</TableHead>
+                                <TableHead className="text-right">Time</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {logs.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                                        No emails found matching your filters.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {logs.map((log) => (
+                                <TableRow key={log.id}>
+                                    <TableCell className="font-medium">
+                                        <div className="flex flex-col space-y-1">
+                                            <span>{log.subject}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="max-w-[200px] truncate" title={log.sender}>{log.sender}</TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center space-x-2">
+                                        <Badge variant="secondary">{log.category}</Badge>
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100">
+                                                    <Edit2 className="h-3 w-3" />
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent>
+                                                <DialogHeader>
+                                                    <DialogTitle>Correct Category</DialogTitle>
+                                                    <DialogDescription>
+                                                        Tell the AI which category this email should have been sorted into.
+                                                    </DialogDescription>
+                                                </DialogHeader>
+                                                <div className="py-4">
+                                                    <div className="text-sm font-medium mb-2">Subject: {log.subject}</div>
+                                                    <div className="text-sm text-muted-foreground mb-4">Current: {log.category}</div>
+                                                    
+                                                    <Select onValueChange={(val) => handleCorrection(log, val)}>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select correct category" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {EMAIL_CATEGORIES.map((cat) => (
+                                                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </DialogContent>
+                                        </Dialog>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center space-x-2">
+                                            {log.isUrgent ? (
+                                                <Badge variant="destructive" className="flex items-center gap-1">
+                                                    <Siren className="h-3 w-3" /> Urgent
+                                                </Badge>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground">Normal</span>
+                                            )}
+                                            
+                                            <Dialog>
+                                                <DialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-30 hover:opacity-100">
+                                                        <Edit2 className="h-3 w-3" />
+                                                    </Button>
+                                                </DialogTrigger>
+                                                <DialogContent>
+                                                    <DialogHeader>
+                                                        <DialogTitle>Correct Urgency</DialogTitle>
+                                                        <DialogDescription>
+                                                            Was this email actually urgent?
+                                                        </DialogDescription>
+                                                    </DialogHeader>
+                                                    <div className="py-4 flex items-center justify-between border rounded-lg p-4">
+                                                        <Label htmlFor="urgent-mode">Mark as Urgent</Label>
+                                                        <Switch 
+                                                            id="urgent-mode"
+                                                            checked={log.isUrgent || false}
+                                                            onCheckedChange={(checked) => handleUrgencyCorrection(log, checked)}
+                                                        />
+                                                    </div>
+                                                </DialogContent>
+                                            </Dialog>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                        {new Date(log.timestamp._seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </TabsContent>
+
+        <TabsContent value="rules" className="space-y-4">
+             {suggestions.length > 0 && (
+                 <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                     <CardHeader className="pb-2">
+                         <CardTitle className="text-lg flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                             <Sparkles className="h-5 w-5" /> AI Suggestions
+                         </CardTitle>
+                         <CardDescription className="text-amber-700/80 dark:text-amber-500">
+                             The AI noticed these patterns in your inbox. Click "Add" to make them permanent rules.
+                         </CardDescription>
+                     </CardHeader>
+                     <CardContent>
+                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                             {suggestions.map((s, i) => (
+                                 <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-background rounded-md border shadow-sm">
+                                     <div className="overflow-hidden">
+                                         <div className="font-medium truncate text-sm" title={s.sender}>{s.sender}</div>
+                                         <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                             To: <Badge variant="secondary" className="text-[10px] h-4">{s.category}</Badge>
+                                         </div>
+                                     </div>
+                                     <Button size="sm" variant="outline" onClick={() => handleAddRule(s.sender, s.category)}>
+                                         Add
+                                     </Button>
+                                 </div>
+                             ))}
+                         </div>
+                     </CardContent>
+                 </Card>
+             )}
+
+             <Card>
+                 <CardHeader>
+                     <CardTitle>Deterministic Rules</CardTitle>
+                     <CardDescription>
+                         Force specific senders to always go to a certain category, bypassing AI classification.
+                     </CardDescription>
+                 </CardHeader>
+                 <CardContent className="space-y-4">
+                     <div className="flex items-end gap-4 border-b pb-4">
+                         <div className="space-y-2 flex-1">
+                             <label className="text-sm font-medium">Sender (contains text)</label>
+                             <Input 
+                                placeholder="e.g. @bankofamerica.com" 
+                                value={newRuleSender}
+                                onChange={(e) => setNewRuleSender(e.target.value)}
+                             />
+                         </div>
+                         <div className="space-y-2 w-[200px]">
+                             <label className="text-sm font-medium">Category</label>
+                             <Select value={newRuleCategory} onValueChange={setNewRuleCategory}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                </SelectContent>
+                             </Select>
+                         </div>
+                         <Button onClick={() => handleAddRule()} disabled={isAddingRule || !newRuleSender}>
+                             <Plus className="mr-2 h-4 w-4" /> Add Rule
+                         </Button>
+                     </div>
+
+                     <Table>
+                         <TableHeader>
+                             <TableRow>
+                                 <TableHead>Sender Match</TableHead>
+                                 <TableHead>Target Category</TableHead>
+                                 <TableHead className="text-right">Actions</TableHead>
+                             </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                             {rules.length === 0 && (
+                                 <TableRow>
+                                     <TableCell colSpan={3} className="text-center text-muted-foreground">No rules defined yet.</TableCell>
+                                 </TableRow>
+                             )}
+                             {rules.map((rule) => (
+                                 <TableRow key={rule.id}>
+                                     <TableCell className="font-mono">{rule.sender}</TableCell>
+                                     <TableCell><Badge variant="outline">{rule.category}</Badge></TableCell>
+                                     <TableCell className="text-right">
+                                         <Button variant="ghost" size="icon" onClick={() => handleDeleteRule(rule.id)}>
+                                             <Trash2 className="h-4 w-4 text-destructive" />
+                                         </Button>
+                                     </TableCell>
+                                 </TableRow>
+                             ))}
+                         </TableBody>
+                     </Table>
+                 </CardContent>
+             </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

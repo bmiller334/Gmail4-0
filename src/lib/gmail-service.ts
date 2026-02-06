@@ -42,54 +42,37 @@ export async function listLabels() {
   return res.data.labels;
 }
 
-export async function createLabel(labelName: string) {
-  const gmail = await getGmailClient();
-  try {
-    const res = await gmail.users.labels.create({
-      userId: 'me',
-      requestBody: {
-        name: labelName,
-        labelListVisibility: 'labelShow',
-        messageListVisibility: 'show',
-      },
-    });
-    return res.data;
-  } catch (error: any) {
-    if (error.code === 409) {
-      // Label already exists, that's fine.
-      console.log(`Label ${labelName} already exists.`);
-      // We might want to fetch the existing ID here if needed, but for now just return.
-      return null; 
-    }
-    throw error;
-  }
-}
-
-
 export async function moveEmailToCategory(messageId: string, categoryLabelName: string) {
   const gmail = await getGmailClient();
   
-  // 1. Get the Label ID for the category (or create it if it doesn't exist)
-  // Optimization: In a real app, cache these mappings.
-  const labels = await listLabels();
-  let labelId = labels?.find(l => l.name === categoryLabelName)?.id;
+  try {
+      // 1. Get the Label ID for the category from existing labels only
+      const labels = await listLabels();
+      // Case-insensitive match to be safer
+      let labelId = labels?.find(l => l.name?.toLowerCase() === categoryLabelName.toLowerCase())?.id;
 
-  if (!labelId) {
-    const newLabel = await createLabel(categoryLabelName);
-    labelId = newLabel?.id;
+      if (!labelId) {
+         console.warn(`Label "${categoryLabelName}" does not exist in Gmail. Skipping move.`);
+         // Optionally, we could log this warning to Firestore so the user knows why an email wasn't moved.
+         return; 
+      }
+      
+      console.log(`Moving message ${messageId} to label ${categoryLabelName} (${labelId})`);
+
+      // 2. Modify the message: Add the category label, Remove 'INBOX' label.
+      await gmail.users.messages.modify({
+        userId: 'me',
+        id: messageId,
+        requestBody: {
+          addLabelIds: [labelId],
+          removeLabelIds: ['INBOX'],
+        },
+      });
+      
+      console.log(`Successfully moved message ${messageId}`);
+      
+  } catch (error: any) {
+      console.error(`Failed to move email to ${categoryLabelName}:`, error);
+      throw error;
   }
-
-  if (!labelId) {
-     throw new Error(`Could not find or create label for category: ${categoryLabelName}`);
-  }
-
-  // 2. Modify the message: Add the category label, Remove 'INBOX' label.
-  await gmail.users.messages.modify({
-    userId: 'me',
-    id: messageId,
-    requestBody: {
-      addLabelIds: [labelId],
-      removeLabelIds: ['INBOX'],
-    },
-  });
 }

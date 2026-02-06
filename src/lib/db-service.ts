@@ -19,6 +19,9 @@ const db = getFirestore();
 export const COLLECTION_STATS = 'email_stats';
 export const DOC_DAILY_STATS = 'daily_stats';
 export const COLLECTION_LOGS = 'email_logs';
+export const COLLECTION_CORRECTIONS = 'email_corrections';
+export const COLLECTION_URGENCY_CORRECTIONS = 'email_urgency_corrections'; // New collection
+export const COLLECTION_RULES = 'email_rules';
 
 export type EmailLog = {
     id: string; // Message ID
@@ -27,6 +30,35 @@ export type EmailLog = {
     category: string;
     timestamp: Date;
     isUrgent: boolean;
+    snippet?: string; // Added snippet to logs so we can use it for training
+};
+
+export type EmailCorrection = {
+    id: string; // usually same as email ID
+    sender: string;
+    subject: string;
+    snippet: string;
+    wrongCategory: string;
+    correctCategory: string;
+    timestamp: Date;
+};
+
+// New type for urgency corrections
+export type UrgencyCorrection = {
+    id: string;
+    sender: string;
+    subject: string;
+    snippet: string;
+    wasUrgent: boolean; // What the AI thought
+    shouldBeUrgent: boolean; // What the user says
+    timestamp: Date;
+};
+
+export type SenderRule = {
+    id?: string;
+    sender: string; // can be partial match or exact email
+    category: string;
+    createdAt: Date;
 };
 
 export async function logEmailProcessing(data: EmailLog) {
@@ -45,24 +77,11 @@ export async function logEmailProcessing(data: EmailLog) {
         const statsRef = db.collection(COLLECTION_STATS).doc(today);
 
         // Atomic increment
-        batch.set(statsRef, {
-            totalProcessed: 1, // Will use FieldValue.increment in a real update, but merge works for init
-            [`categories.${data.category}`]: 1, // This overwrites if using set without merge logic, see below
-            lastUpdated: new Date()
-        }, { merge: true });
-        
-        // Correct way to increment fields atomically
-        // Since we can't mix set({merge:true}) with simple increments easily in one go without reading first or using update 
-        // (which fails if doc doesn't exist), we often use set with merge for the base and then update.
-        // For simplicity in this scaffold, let's just use 'set' with merge but we handle counters manually? 
-        // No, we should use FieldValue.increment.
-        
-        // Let's do a transactional update or just separate writes for stats.
-        // Simplified approach: Just write the log first.
-        
+        // We use set with merge for the initial creation if needed, then update for increments
         await logRef.set(data);
         
         // Now update stats safely
+        // Ensure doc exists
         await db.collection(COLLECTION_STATS).doc(today).set({
              lastUpdated: new Date() 
         }, { merge: true });
@@ -73,9 +92,6 @@ export async function logEmailProcessing(data: EmailLog) {
             [`categories.${data.category}`]: FieldValue.increment(1),
             [`senders.${data.sender.replace(/\./g, '_')}`]: FieldValue.increment(1) // Sanitize key
         }).catch(async (err) => {
-             // If update fails (doc likely doesn't exist yet even though we tried set), 
-             // it might be race condition or field structure mismatch.
-             // Retry with set if 'NOT_FOUND'
              if (err.code === 5) { // NOT_FOUND
                  await db.collection(COLLECTION_STATS).doc(today).set({
                     totalProcessed: 1,
@@ -95,32 +111,230 @@ export async function logEmailProcessing(data: EmailLog) {
     }
 }
 
-export async function getStats() {
+export async function addCorrection(data: EmailCorrection) {
     try {
-        const today = new Date().toISOString().split('T')[0];
-        const doc = await db.collection(COLLECTION_STATS).doc(today).get();
+        // 1. Save the correction
+        await db.collection(COLLECTION_CORRECTIONS).doc(data.id).set(data);
+
+        // 2. Update the original log to reflect the new category
+        await db.collection(COLLECTION_LOGS).doc(data.id).update({
+            category: data.correctCategory
+        });
+
+        console.log("Logged email correction to Firestore");
+    } catch (error) {
+        console.error("Error adding correction:", error);
+    }
+}
+
+export async function addUrgencyCorrection(data: UrgencyCorrection) {
+    try {
+        // 1. Save the urgency correction
+        await db.collection(COLLECTION_URGENCY_CORRECTIONS).doc(data.id).set(data);
+
+        // 2. Update the original log
+        await db.collection(COLLECTION_LOGS).doc(data.id).update({
+            isUrgent: data.shouldBeUrgent
+        });
         
-        if (!doc.exists) {
-            return null;
+        console.log("Logged urgency correction to Firestore");
+    } catch (error) {
+        console.error("Error adding urgency correction:", error);
+    }
+}
+
+export async function getCorrections(limit = 20) {
+    try {
+        // Fetch recent corrections to use as examples
+        const snapshot = await db.collection(COLLECTION_CORRECTIONS)
+            .orderBy('timestamp', 'desc')
+            .limit(limit)
+            .get();
+        
+        return snapshot.docs.map(doc => doc.data() as EmailCorrection);
+    } catch (error) {
+        console.error("Error fetching corrections:", error);
+        return [];
+    }
+}
+
+export async function getUrgencyCorrections(limit = 20) {
+    try {
+        const snapshot = await db.collection(COLLECTION_URGENCY_CORRECTIONS)
+            .orderBy('timestamp', 'desc')
+            .limit(limit)
+            .get();
+        return snapshot.docs.map(doc => doc.data() as UrgencyCorrection);
+    } catch (error) {
+        console.error("Error fetching urgency corrections:", error);
+        return [];
+    }
+}
+
+// --- Rules ---
+
+export async function addSenderRule(rule: SenderRule) {
+    try {
+        const docRef = db.collection(COLLECTION_RULES).doc();
+        await docRef.set({
+            ...rule,
+            id: docRef.id
+        });
+        return docRef.id;
+    } catch (error) {
+        console.error("Error adding rule:", error);
+        throw error;
+    }
+}
+
+export async function getSenderRules() {
+    try {
+        const snapshot = await db.collection(COLLECTION_RULES).get();
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SenderRule));
+    } catch (error) {
+        console.error("Error fetching rules:", error);
+        return [];
+    }
+}
+
+export async function deleteSenderRule(id: string) {
+    try {
+        await db.collection(COLLECTION_RULES).doc(id).delete();
+    } catch (error) {
+        console.error("Error deleting rule:", error);
+        throw error;
+    }
+}
+
+
+export async function getStats(days = 1) {
+    try {
+        if (days === 1) {
+             const today = new Date().toISOString().split('T')[0];
+             const doc = await db.collection(COLLECTION_STATS).doc(today).get();
+             if (!doc.exists) return null;
+             return doc.data();
+        } else {
+            // Get last N days for charts
+             const today = new Date();
+             const promises = [];
+             for(let i=0; i<days; i++) {
+                 const d = new Date(today);
+                 d.setDate(d.getDate() - i);
+                 const dateStr = d.toISOString().split('T')[0];
+                 promises.push(db.collection(COLLECTION_STATS).doc(dateStr).get());
+             }
+             
+             const docs = await Promise.all(promises);
+             return docs.map((d, i) => {
+                 const date = new Date(today);
+                 date.setDate(date.getDate() - i);
+                 return {
+                     date: date.toISOString().split('T')[0],
+                     ...(d.exists ? d.data() : { totalProcessed: 0 })
+                 };
+             }).reverse();
         }
-        
-        return doc.data();
+
     } catch (error) {
         console.error("Error fetching stats:", error);
         return null;
     }
 }
 
-export async function getRecentLogs(limit = 10) {
+export async function getRecentLogs(limit = 50, filter?: { search?: string, category?: string }) {
     try {
-        const snapshot = await db.collection(COLLECTION_LOGS)
-            .orderBy('timestamp', 'desc')
-            .limit(limit)
-            .get();
-            
-        return snapshot.docs.map(doc => doc.data());
+        let query = db.collection(COLLECTION_LOGS).orderBy('timestamp', 'desc');
+
+        if (filter?.category && filter.category !== 'All') {
+            query = query.where('category', '==', filter.category);
+        }
+        
+        // Note: Firestore doesn't support full-text search natively. 
+        // For simple partial matching on sender/subject, we'd need a third-party service like Algolia or Typesense.
+        // Or we can fetch more and filter in memory if the dataset is small (which it is for a personal inbox).
+        
+        const snapshot = await query.limit(limit).get();
+        let logs = snapshot.docs.map(doc => doc.data() as EmailLog);
+
+        if (filter?.search) {
+            const searchLower = filter.search.toLowerCase();
+            logs = logs.filter(log => 
+                log.subject.toLowerCase().includes(searchLower) || 
+                log.sender.toLowerCase().includes(searchLower)
+            );
+        }
+
+        return logs;
     } catch (error) {
          console.error("Error fetching logs:", error);
          return [];
+    }
+}
+
+// Function to find high confidence patterns
+export async function findSenderPatterns(minOccurrences = 5, confidenceThreshold = 1.0) {
+    try {
+        // Fetch recent logs (last 500 should be enough for patterns)
+        const snapshot = await db.collection(COLLECTION_LOGS)
+            .orderBy('timestamp', 'desc')
+            .limit(500)
+            .get();
+            
+        const logs = snapshot.docs.map(doc => doc.data() as EmailLog);
+        
+        // Group by sender
+        const senderStats: Record<string, { [category: string]: number }> = {};
+        
+        logs.forEach(log => {
+             // Simplify sender (extract email only ideally, but simple string match for now)
+             const sender = log.sender.toLowerCase();
+             if (!senderStats[sender]) {
+                 senderStats[sender] = {};
+             }
+             if (!senderStats[sender][log.category]) {
+                 senderStats[sender][log.category] = 0;
+             }
+             senderStats[sender][log.category]++;
+        });
+
+        const suggestions: { sender: string, category: string, confidence: number, count: number }[] = [];
+
+        Object.entries(senderStats).forEach(([sender, categories]) => {
+             const total = Object.values(categories).reduce((a, b) => a + b, 0);
+             if (total < minOccurrences) return;
+
+             // Find dominant category
+             let dominantCategory = '';
+             let dominantCount = 0;
+             
+             Object.entries(categories).forEach(([cat, count]) => {
+                 if (count > dominantCount) {
+                     dominantCount = count;
+                     dominantCategory = cat;
+                 }
+             });
+
+             const confidence = dominantCount / total;
+             
+             if (confidence >= confidenceThreshold) {
+                 suggestions.push({
+                     sender,
+                     category: dominantCategory,
+                     confidence,
+                     count: total
+                 });
+             }
+        });
+
+        // Filter out existing rules
+        const existingRules = await getSenderRules();
+        const existingSenders = new Set(existingRules.map(r => r.sender.toLowerCase()));
+        
+        return suggestions.filter(s => !existingSenders.has(s.sender));
+
+    } catch (error) {
+        console.error("Error finding patterns:", error);
+        return [];
     }
 }
