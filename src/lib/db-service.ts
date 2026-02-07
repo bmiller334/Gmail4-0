@@ -1,6 +1,6 @@
 import "./env-fix"; // MUST BE FIRST IMPORT
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, DocumentData } from 'firebase-admin/firestore'; // Added DocumentData import
 import { EMAIL_CATEGORIES } from "@/lib/categories"; 
 
 // The env-fix import above should handle the variable cleanup.
@@ -153,13 +153,18 @@ export async function deleteSenderRule(id: string) {
     try { await db.collection(COLLECTION_RULES).doc(id).delete(); } catch (error) { throw error; }
 }
 
-export async function getStats(days = 1) {
+// ------------------------------------------------------------------
+// FIX: Added Overloads so TypeScript knows exactly what is returned
+// ------------------------------------------------------------------
+export async function getStats(days: 1): Promise<DocumentData | null>;
+export async function getStats(days: number): Promise<{ date: string; [key: string]: any }[]>;
+export async function getStats(days = 1): Promise<DocumentData | null | { date: string; [key: string]: any }[]> {
     try {
         if (days === 1) {
              const today = new Date().toISOString().split('T')[0];
              const doc = await db.collection(COLLECTION_STATS).doc(today).get();
              if (!doc.exists) return null;
-             return doc.data();
+             return doc.data() || null;
         } else {
              const today = new Date();
              const promises = [];

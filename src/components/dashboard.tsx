@@ -100,8 +100,8 @@ type RuleSuggestion = {
     confidence: number;
 };
 
-// Personality: Dynamic Greetings
-const getGreeting = () => {
+// Personality: Dynamic Greetings (Helper)
+const getGreetingText = () => {
     const hour = new Date().getHours();
     if (hour < 5) return "Burning the midnight oil?";
     if (hour < 11) return "Good Morning, Syracuse.";
@@ -123,8 +123,9 @@ export default function Dashboard() {
   const [cleaning, setCleaning] = useState(false);
   const [correcting, setCorrecting] = useState<string | null>(null); 
   
-  // Date State for Hydration safety
+  // Date & Greeting State for Hydration safety
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const [greeting, setGreeting] = useState<string>("Hello, Syracuse."); // Default for server render
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -173,15 +174,16 @@ export default function Dashboard() {
   }, [searchTerm, categoryFilter]);
 
   useEffect(() => {
-    // Set date on mount
+    // Client-side only logic to avoid hydration mismatch
     setCurrentDate(new Date());
+    setGreeting(getGreetingText());
 
     // Initial fetch
     fetchData();
     // Poll every 30s
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, []); // Only run on mount, internal effect handles dependencies
+  }, []); 
 
   const handleCleanup = async () => {
       setCleaning(true);
@@ -316,8 +318,8 @@ export default function Dashboard() {
           <div className="flex justify-between items-end mb-2">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                        {/* Personality Injection: Dynamic Greeting */}
-                        {getGreeting()}
+                        {/* Personality Injection: Dynamic Greeting (Client-Side Only) */}
+                        {greeting}
                     </h2>
                     <p className="text-muted-foreground flex items-center gap-2 mt-1">
                         <Wrench className="h-4 w-4 opacity-50" />
