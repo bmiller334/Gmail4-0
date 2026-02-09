@@ -1,4 +1,4 @@
-# Project Context: AI-Powered Inbox Zero Manager (Command Center)
+# Project Context: AI-Powered Inbox Zero Manager (Syracuse Hardware Command Center)
 
 **For Future AI Agents & Developers:**
 This document serves as the primary context source for the current state of the project. It outlines architectural decisions, specific workarounds implemented to bypass Google Cloud limitations for personal accounts, and the current feature set.
@@ -22,16 +22,18 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to b
     *   **Classify**: Sends the Subject, Sender, and Snippet to **Gemini 2.5 Flash**.
     *   **Action**: Moves the email to a label (e.g., "Marketing", "Work") using the Gmail API.
     *   **Log**: Writes processing metadata and **AI Reasoning** to **Firestore** (`email_logs`, `email_stats`, `email_corrections`, `email_urgency_corrections`, `email_rules` collections).
+    *   **Quota Enforcement**: Stops processing if daily AI calls exceed 1300 to prevent API overages.
 
 3.  **Visualization (Command Center Dashboard)**:
     *   Frontend polls `/api/stats` to render real-time volume and category distribution.
+    *   **Smart Header**: Dynamically greets the user based on time of day and **next calendar event** (e.g., "Meeting with Supplier at 2pm").
     *   **Store Widgets**:
         *   **Ag-Focused Weather**: Real-time weather for Syracuse, KS with agricultural advice.
         *   **Commodity Ticker**: Tracks Lumber, Copper, and Steel prices.
-        *   **Community Events**: Lists local events (e.g., Homecoming, Chamber of Commerce).
+        *   **Community Events**: Lists local events.
         *   **Shift Handoff Notes**: A persistent sticky-note board for staff communication (`store_notes` collection).
-    *   **System Logs**: A dedicated page (`/logs`) streams system logs from Google Cloud Logging.
-    *   **Error Ticker**: A global ticker at the top of the app showing recent system errors.
+    *   **System Logs**: A dedicated page (`/logs`) streams system logs and tracks **Daily API Quota usage**.
+    *   **Error Ticker**: A global ticker showing recent errors or **Quota Warnings** (Yellow at 1000, Red at 1300).
 
 4.  **Learning & Correction System**:
     *   Users can manually correct email categorizations or urgency flags.
@@ -47,13 +49,14 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to b
 **Solution**: We implemented a custom auth flow in `src/lib/gmail-service.ts`.
 *   The app uses **OAuth 2.0 Client ID & Secret** + a long-lived **Refresh Token**.
 *   **Environment Variables**: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`.
+*   **Scopes**: `gmail.modify` AND `calendar.events` (for dashboard integration).
 *   *Do not attempt to switch this back to standard `GoogleAuth` service account logic unless migrating to a Workspace domain.*
 
 ### B. Genkit Configuration
 **File**: `src/ai/genkit.ts`
 *   We use a **singleton** Genkit instance to avoid configuration conflicts.
 *   **Model**: Currently set to `googleai/gemini-2.5-flash` per user request.
-*   **Note**: If `2.5` becomes deprecated or unavailable, revert to `gemini-1.5-flash` or `gemini-2.0-flash-exp`.
+*   **Note**: If `2.5` becomes deprecated or unavailable, Do NOT revert to `gemini-1.5-flash` or `gemini-2.0-flash-exp', these are both deprecated, even though my knowledge base doesn't verify this, user insists. 
 
 ### C. Pub/Sub Subscription
 *   The subscription is a **Push Subscription**.
@@ -64,17 +67,18 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to b
 
 ### Local Development vs. Cloud Auth
 *   **Problem**: The `.env` file contained `GOOGLE_APPLICATION_CREDENTIALS` pointing to a placeholder file. This caused local scripts (like `check-subs.ts`) to fail.
-*   **Fix**: Scripts now explicitly `delete process.env.GOOGLE_APPLICATION_CREDENTIALS` at runtime to force usage of the local user's `gcloud` credentials.
+*   **Fix**: Scripts now explicitly `delete process.env.GOOGLE_APPLICATION_CREDENTIALS` at runtime. We also added `src/lib/env-fix.ts` imported at the top of `db-service.ts` to strip this variable before `firebase-admin` initializes.
 
 ### Build Errors (UI Components)
 *   **Problem**: Encountered `Element type is invalid: expected a string... but got: undefined` during build.
 *   **Cause**: Likely due to named vs. default export mismatches in UI components or missing icons in `lucide-react`.
 *   **Fix**: Switched to absolute imports (e.g., `@/components/ui/button`) and ensured all used icons exist in the installed version of `lucide-react`.
 
-### Gmail Rate Limits
+### Gmail Rate Limits & Quota
 *   **Feature**: "Clean Inbox" button.
 *   **Constraint**: Processing hundreds of emails at once triggers rate limits.
-*   **Solution**: `src/app/api/cleanup/route.ts` is capped at **50 emails** per run and uses a concurrency limit of 5 parallel requests.
+*   **Solution**: `src/app/api/cleanup/route.ts` is capped at **20 emails** per run and uses **sequential processing** with a **2-second delay** between emails to stay under the 15 RPM limit.
+*   **Daily Quota**: The system actively tracks API calls (`email_stats.totalProcessed`). If usage exceeds **1300/day**, both automatic and manual processing are disabled to prevent overages.
 
 ### Firestore FieldValue Issues
 *   **Problem**: Updating nested fields (like `categories.Marketing`) in Firestore sometimes failed if the document didn't exist or fields weren't initialized.
@@ -139,3 +143,5 @@ npx tsx scripts/setup-gmail-watch.ts
     *   Fields: `id`, `sender` (email or pattern), `category`, `createdAt`.
 *   **`store_notes`**: Stores shift handoff notes.
     *   Fields: `id`, `content`, `createdAt`, `author`.
+*   **`settings`**: Stores app configuration (currently used for dynamic categories if enabled).
+    *   Doc: `email_categories` -> Fields: `categories` (Array).

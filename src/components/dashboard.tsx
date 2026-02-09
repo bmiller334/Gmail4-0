@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench } from "lucide-react"; 
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar } from "lucide-react"; 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input";
@@ -101,7 +101,12 @@ type RuleSuggestion = {
 };
 
 // Personality: Dynamic Greetings (Helper)
-const getGreetingText = () => {
+const getGreetingText = (calendarEvent?: { summary: string, start: string } | null) => {
+    if (calendarEvent) {
+        const time = new Date(calendarEvent.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
+        return `Heads up: "${calendarEvent.summary}" at ${time}.`;
+    }
+
     const hour = new Date().getHours();
     if (hour < 5) return "Burning the midnight oil?";
     if (hour < 11) return "Good Morning, Syracuse.";
@@ -125,7 +130,8 @@ export default function Dashboard() {
   
   // Date & Greeting State for Hydration safety
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
-  const [greeting, setGreeting] = useState<string>("Hello, Syracuse."); // Default for server render
+  const [greeting, setGreeting] = useState<string>("Hello, Syracuse."); 
+  const [nextEvent, setNextEvent] = useState<any>(null);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -176,12 +182,29 @@ export default function Dashboard() {
   useEffect(() => {
     // Client-side only logic to avoid hydration mismatch
     setCurrentDate(new Date());
-    setGreeting(getGreetingText());
+    
+    // Fetch Calendar
+    const fetchCalendar = async () => {
+        try {
+            const res = await fetch('/api/calendar');
+            const data = await res.json();
+            setNextEvent(data.event);
+            setGreeting(getGreetingText(data.event));
+        } catch (e) {
+            console.error("Calendar fetch failed", e);
+            setGreeting(getGreetingText(null));
+        }
+    };
+    
+    fetchCalendar();
 
     // Initial fetch
     fetchData();
     // Poll every 30s
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(() => {
+        fetchData();
+        fetchCalendar();
+    }, 30000);
     return () => clearInterval(interval);
   }, []); 
 
@@ -322,10 +345,15 @@ export default function Dashboard() {
                         {greeting}
                     </h2>
                     <p className="text-muted-foreground flex items-center gap-2 mt-1">
-                        <Wrench className="h-4 w-4 opacity-50" />
+                        <Calendar className="h-4 w-4 opacity-50" />
                         {currentDate ? currentDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : "Loading date..."}
-                        <span className="opacity-30">|</span> 
-                        Ready for the day?
+                        
+                        {!nextEvent && (
+                            <>
+                                <span className="opacity-30">|</span> 
+                                Ready for the day?
+                            </>
+                        )}
                     </p>
                 </div>
                 
