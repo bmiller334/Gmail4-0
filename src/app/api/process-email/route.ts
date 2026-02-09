@@ -8,31 +8,38 @@ const HARD_LIMIT = 1300;
 export async function POST(req: NextRequest) {
   try {
     // 0. Check Quota First
+    // getStats(1) returns DocumentData | null because of the overload.
     const stats = await getStats(1); 
     const currentUsage = stats?.totalProcessed || 0;
 
     if (currentUsage >= HARD_LIMIT) {
-        console.warn(`[Quota] Daily limit reached (${currentUsage}/${HARD_LIMIT}). Skipping.`);
+        console.warn(`[Quota] Daily limit reached (${currentUsage}/${HARD_LIMIT}). Skipping processing.`);
         return NextResponse.json({ status: "skipped", reason: "quota_exceeded" });
     }
 
-    // 1. Parse Pub/Sub
+    // 1. Parse the incoming Pub/Sub message
     const body = await req.json();
-    if (!body.message) return NextResponse.json({ error: "Invalid Pub/Sub" }, { status: 400 });
+    
+    if (!body.message) {
+        return NextResponse.json({ error: "Invalid Pub/Sub message format" }, { status: 400 });
+    }
 
     const data = body.message.data ? Buffer.from(body.message.data, 'base64').toString().trim() : null;
-    if (!data) return NextResponse.json({ message: "No data" }, { status: 200 });
+    
+    if (!data) {
+       return NextResponse.json({ message: "No data in message" }, { status: 200 });
+    }
     
     const notification = JSON.parse(data);
-    const historyId = notification.historyId; // Unused for now, but good for debugging
+    const historyId = notification.historyId;
     const emailAddress = notification.emailAddress;
+    
+    console.log(`Received notification for ${emailAddress}, historyId: ${historyId}`);
 
-    // 2. Reuse ONE Gmail Client
+    // 2. Fetch the actual email(s) that changed
     const gmail = await getGmailClient();
 
     // Fetch the latest UNREAD email in INBOX
-    // Optimization Note: This is still subject to race conditions if multiple emails 
-    // arrive instantly, but it is the fastest implementation.
     const response = await gmail.users.messages.list({
         userId: 'me',
         q: 'label:INBOX is:unread', 
@@ -45,38 +52,51 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: "No new unread messages found" });
     }
 
-    // Get message details
-    const messageId = messages[0].id!;
+    // Defensive: Get the first message ID safely
+    const messageId = messages[0].id;
+    if (!messageId) {
+        throw new Error("Message ID is undefined in list response");
+    }
+
+    // Use 'full' format to ensure we get headers and snippet reliably.
+    // 'metadata' sometimes omits snippet depending on API version/fields.
     const messageDetailsResponse = await gmail.users.messages.get({
         userId: 'me',
         id: messageId,
-        format: 'metadata',
-        metadataHeaders: ['Subject', 'From'],
+        format: 'full', 
     });
     
     const messageDetails = messageDetailsResponse.data;
+
+    // CRITICAL FIX: Ensure messageDetails is defined before accessing properties
+    if (!messageDetails) {
+        throw new Error("Failed to fetch message details: Response data is empty");
+    }
+
     const headers = messageDetails.payload?.headers;
     const subject = headers?.find(h => h.name === 'Subject')?.value || 'No Subject';
     const sender = headers?.find(h => h.name === 'From')?.value || 'Unknown Sender';
-    const snippet = messageDetails.snippet || ''; // Access snippet directly from top level
+    const snippet = messageDetails.snippet || ''; // Safe access now
     
-    console.log(`Processing: ${subject}`);
+    console.log(`Processing email: ${subject} from ${sender}`);
 
     let category = null;
     let isUrgent = false;
     let reasoning = null;
 
-    // 3a. Deterministic Rules (Fastest)
+    // 3a. Check Deterministic Rules First
+    // getSenderRules returns Promise<SenderRule[]>
     const rules = await getSenderRules();
-    const matchedRule = rules.find(r => sender.toLowerCase().includes(r.sender.toLowerCase()));
+    // Use optional chaining or a default empty array just in case, though getSenderRules handles errors.
+    const matchedRule = (rules || []).find(r => sender.toLowerCase().includes(r.sender.toLowerCase()));
     
     if (matchedRule) {
-            console.log(`Rule Match: ${matchedRule.category}`);
+            console.log(`Matched rule: ${matchedRule.sender} -> ${matchedRule.category}`);
             category = matchedRule.category;
-            isUrgent = false;
-            reasoning = `Matched custom rule: ${matchedRule.sender}`;
+            isUrgent = false; 
+            reasoning = `Matched custom rule for sender: ${matchedRule.sender}`;
     } else {
-            // 3b. AI Classification (Slower)
+            // 3b. Fallback to AI Classification
             const classification = await classifyEmail({
                 subject,
                 sender,
@@ -85,13 +105,13 @@ export async function POST(req: NextRequest) {
             category = classification.category;
             isUrgent = classification.isUrgent;
             reasoning = classification.reasoning;
-            console.log(`AI Match: ${category}`);
+            console.log(`AI Classified as: ${category}`);
     }
 
-    // 4. Move Email (Pass 'gmail' client to avoid re-auth & use Cache)
-    await moveEmailToCategory(messageId, category, gmail);
+    // 4. Move the email
+    await moveEmailToCategory(messageId, category);
     
-    // 5. Store stats
+    // 5. Store stats in Firestore
     await logEmailProcessing({
         id: messageId,
         sender,
@@ -106,7 +126,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "success" });
 
   } catch (error: any) {
-    console.error("Error processing:", error);
+    console.error("Error processing Pub/Sub message:", error);
+    // Return 500 so Pub/Sub retries? Or 200 to swallow poison pills?
+    // Usually 200 to swallow poison pills if it's a code error (like this TypeError), 
+    // otherwise we just get flooded with logs.
+    // For now, returning 500 to see it in logs, but be aware of retry storms.
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
