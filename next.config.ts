@@ -43,6 +43,9 @@ const nextConfig: NextConfig = {
   webpack: (config, { dev }) => {
     if (dev) {
         config.devtool = 'cheap-module-source-map';
+    } else {
+        // Enable source maps in production for better debugging
+        config.devtool = 'source-map';
     }
     return config;
   },

@@ -8,7 +8,6 @@ const HARD_LIMIT = 1300;
 export async function POST(req: NextRequest) {
   try {
     // 0. Check Quota First
-    // getStats(1) returns DocumentData | null because of the overload.
     const stats = await getStats(1); 
     const currentUsage = stats?.totalProcessed || 0;
 
@@ -59,7 +58,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Use 'full' format to ensure we get headers and snippet reliably.
-    // 'metadata' sometimes omits snippet depending on API version/fields.
     const messageDetailsResponse = await gmail.users.messages.get({
         userId: 'me',
         id: messageId,
@@ -70,13 +68,15 @@ export async function POST(req: NextRequest) {
 
     // CRITICAL FIX: Ensure messageDetails is defined before accessing properties
     if (!messageDetails) {
+        console.error("Failed to fetch message details: Response data is empty or undefined", messageDetailsResponse);
         throw new Error("Failed to fetch message details: Response data is empty");
     }
 
+    // Use optional chaining for EVERYTHING derived from messageDetails
     const headers = messageDetails.payload?.headers;
-    const subject = headers?.find(h => h.name === 'Subject')?.value || 'No Subject';
-    const sender = headers?.find(h => h.name === 'From')?.value || 'Unknown Sender';
-    const snippet = messageDetails.snippet || ''; // Safe access now
+    const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
+    const sender = headers?.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
+    const snippet = messageDetails.snippet || ''; 
     
     console.log(`Processing email: ${subject} from ${sender}`);
 
@@ -85,9 +85,7 @@ export async function POST(req: NextRequest) {
     let reasoning = null;
 
     // 3a. Check Deterministic Rules First
-    // getSenderRules returns Promise<SenderRule[]>
     const rules = await getSenderRules();
-    // Use optional chaining or a default empty array just in case, though getSenderRules handles errors.
     const matchedRule = (rules || []).find(r => sender.toLowerCase().includes(r.sender.toLowerCase()));
     
     if (matchedRule) {
@@ -97,15 +95,22 @@ export async function POST(req: NextRequest) {
             reasoning = `Matched custom rule for sender: ${matchedRule.sender}`;
     } else {
             // 3b. Fallback to AI Classification
-            const classification = await classifyEmail({
-                subject,
-                sender,
-                snippet
-            });
-            category = classification.category;
-            isUrgent = classification.isUrgent;
-            reasoning = classification.reasoning;
-            console.log(`AI Classified as: ${category}`);
+            try {
+                const classification = await classifyEmail({
+                    subject,
+                    sender,
+                    snippet
+                });
+                category = classification.category;
+                isUrgent = classification.isUrgent;
+                reasoning = classification.reasoning;
+                console.log(`AI Classified as: ${category}`);
+            } catch (aiError) {
+                console.error("AI Classification failed:", aiError);
+                category = "Manual Sort"; // specific fallback
+                isUrgent = false;
+                reasoning = "AI Classification failed, defaulting to Manual Sort";
+            }
     }
 
     // 4. Move the email
@@ -127,10 +132,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("Error processing Pub/Sub message:", error);
-    // Return 500 so Pub/Sub retries? Or 200 to swallow poison pills?
-    // Usually 200 to swallow poison pills if it's a code error (like this TypeError), 
-    // otherwise we just get flooded with logs.
-    // For now, returning 500 to see it in logs, but be aware of retry storms.
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
