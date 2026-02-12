@@ -51,12 +51,13 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to b
 *   **Environment Variables**: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`.
 *   **Scopes**: `gmail.modify` AND `calendar.events` (for dashboard integration).
 *   *Do not attempt to switch this back to standard `GoogleAuth` service account logic unless migrating to a Workspace domain.*
+*   **Fallback**: The code contains a fallback to `GoogleAuth` (Service Account) if OAuth creds are missing, but this will likely fail for personal Gmail.
 
 ### B. Genkit Configuration
 **File**: `src/ai/genkit.ts`
 *   We use a **singleton** Genkit instance to avoid configuration conflicts.
-*   **Model**: Currently set to `googleai/gemini-2.5-flash` per user request.
-*   **Note**: If `2.5` becomes deprecated or unavailable, Do NOT revert to `gemini-1.5-flash` or `gemini-2.0-flash-exp', these are both deprecated, even though my knowledge base doesn't verify this, user insists. 
+*   **Model**: Currently set to `googleai/gemini-2.5-flash`.
+*   **Note**: If `2.5` becomes deprecated or unavailable, Do NOT revert to `gemini-1.5-flash` or `gemini-2.0-flash-exp', these are both deprecated.
 
 ### C. Pub/Sub Subscription
 *   The subscription is a **Push Subscription**.
@@ -84,7 +85,31 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to b
 *   **Problem**: Updating nested fields (like `categories.Marketing`) in Firestore sometimes failed if the document didn't exist or fields weren't initialized.
 *   **Solution**: `src/lib/db-service.ts` uses a try-catch block with error code checking. If an update fails with `NOT_FOUND` (Error code 5), it performs a `set` operation to initialize the document.
 
-## 5. Setup & Deployment Reference
+## 5. Troubleshooting: Invalid Grant / Expired Token
+
+If logs show `Error: invalid_grant` (Token has been expired or revoked), the **Refresh Token** has likely expired or the user changed their password.
+
+**Resolution Steps:**
+1.  Go to the [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
+2.  Navigate to **APIs & Services > Credentials** and find your **OAuth 2.0 Client ID**.
+3.  Go to the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground).
+4.  Click the **Settings (Gear Icon)**.
+    *   Check **"Use your own OAuth credentials"**.
+    *   Enter your `Client ID` and `Client Secret`.
+5.  In "Select & authorize APIs", input the following scopes:
+    *   `https://www.googleapis.com/auth/gmail.modify`
+    *   `https://www.googleapis.com/auth/calendar.events`
+    *   `https://www.googleapis.com/auth/calendar.readonly`
+6.  Click **Authorize APIs**.
+7.  Exchange the authorization code for tokens.
+8.  Copy the new **Refresh Token**.
+9.  **Update Cloud Run**:
+    ```bash
+    gcloud run services update nextn-email-sorter --update-env-vars GMAIL_REFRESH_TOKEN="YOUR_NEW_TOKEN"
+    ```
+10. **Update Local `.env`** (for development).
+
+## 6. Setup & Deployment Reference
 
 ### Environment Variables
 ```bash
@@ -128,7 +153,7 @@ gcloud pubsub subscriptions update gmail-subscription \
 npx tsx scripts/setup-gmail-watch.ts
 ```
 
-## 6. Firestore Schema Reference
+## 7. Firestore Schema Reference
 
 ### Collections:
 *   **`email_logs`**: Stores individual processing logs.
@@ -145,3 +170,18 @@ npx tsx scripts/setup-gmail-watch.ts
     *   Fields: `id`, `content`, `createdAt`, `author`.
 *   **`settings`**: Stores app configuration (currently used for dynamic categories if enabled).
     *   Doc: `email_categories` -> Fields: `categories` (Array).
+
+## 8. Configuration & Utility Scripts
+
+### Categories
+Default categories (defined in `src/lib/categories.ts`):
+- `[Action Required]`, `Finance`, `Manual Sort`, `Marketing`, `Newslettter`, `Promotions`, `Security Alerts`, `Social`, `Updates`, `Work`.
+- The system supports fetching dynamic categories from Firestore (`settings` collection) if configured.
+
+### Scripts (`scripts/`)
+*   `setup-gmail-watch.ts`: Sets up the push notification watch on the Gmail Inbox.
+*   `check-subs.ts`: Lists current Google Cloud Pub/Sub subscriptions and their status.
+*   `list-labels.ts`: Lists all labels in the authenticated Gmail account (useful for debugging label IDs).
+*   `debug-auth.ts`: Tests authentication and prints the user's email address.
+*   `diagnose-connection.ts`: Diagnostics for connectivity.
+*   `test-logging.ts`: Tests writing to Google Cloud Logging.
