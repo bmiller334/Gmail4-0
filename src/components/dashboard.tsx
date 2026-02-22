@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar } from "lucide-react"; 
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar, X } from "lucide-react"; 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input";
@@ -100,7 +100,6 @@ type RuleSuggestion = {
     confidence: number;
 };
 
-// Personality: Dynamic Greetings (Helper)
 const getGreetingText = (calendarEvent?: { summary: string, start: string } | null) => {
     if (calendarEvent) {
         const time = new Date(calendarEvent.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
@@ -128,19 +127,20 @@ export default function Dashboard() {
   const [cleaning, setCleaning] = useState(false);
   const [correcting, setCorrecting] = useState<string | null>(null); 
   
-  // Date & Greeting State for Hydration safety
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [greeting, setGreeting] = useState<string>("Hello, Syracuse."); 
   const [nextEvent, setNextEvent] = useState<any>(null);
 
-  // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
 
-  // New Rule Form
   const [newRuleSender, setNewRuleSender] = useState("");
   const [newRuleCategory, setNewRuleCategory] = useState<string>(EMAIL_CATEGORIES[0]);
   const [isAddingRule, setIsAddingRule] = useState(false);
+
+  // State for editing suggestion before adding
+  const [editingSuggestion, setEditingSuggestion] = useState<RuleSuggestion | null>(null);
+  const [editedSuggestionCategory, setEditedSuggestionCategory] = useState<string>("");
 
   const { toast } = useToast();
 
@@ -159,7 +159,6 @@ export default function Dashboard() {
         setInsights(data.insights || []);
         setRules(data.rules || []);
 
-        // Also fetch suggestions
         const suggestionsRes = await fetch('/api/rules/suggestions');
         const suggestionsData = await suggestionsRes.json();
         setSuggestions(suggestionsData.suggestions || []);
@@ -171,7 +170,6 @@ export default function Dashboard() {
     }
   };
 
-  // Debounce search
   useEffect(() => {
       const timer = setTimeout(() => {
           fetchData();
@@ -180,27 +178,29 @@ export default function Dashboard() {
   }, [searchTerm, categoryFilter]);
 
   useEffect(() => {
-    // Client-side only logic to avoid hydration mismatch
     setCurrentDate(new Date());
     
-    // Fetch Calendar
     const fetchCalendar = async () => {
         try {
             const res = await fetch('/api/calendar');
             const data = await res.json();
-            setNextEvent(data.event);
-            setGreeting(getGreetingText(data.event));
+            // Suppress error if no event found or API disabled, just silently fail
+            if (data.event) {
+                setNextEvent(data.event);
+                setGreeting(getGreetingText(data.event));
+            } else {
+                 setGreeting(getGreetingText(null));
+            }
         } catch (e) {
-            console.error("Calendar fetch failed", e);
+            // Silently fail for calendar errors to avoid banner noise
+            console.warn("Calendar fetch failed (suppressed UI error)", e);
             setGreeting(getGreetingText(null));
         }
     };
     
     fetchCalendar();
 
-    // Initial fetch
     fetchData();
-    // Poll every 30s
     const interval = setInterval(() => {
         fetchData();
         fetchCalendar();
@@ -226,7 +226,6 @@ export default function Dashboard() {
               });
               fetchData();
           } else {
-              // Safety check for error structure
               const errorMessage = data?.error || data?.message || "Unknown error";
               toast({ variant: "destructive", title: "Cleanup Failed", description: errorMessage });
           }
@@ -308,7 +307,8 @@ export default function Dashboard() {
           if (res.ok) {
               toast({ title: "Rule Added", description: `Emails from "${sender}" will be moved to ${category}.` });
               if (sender === newRuleSender) setNewRuleSender("");
-              fetchData(); // Refresh rules list
+              setEditingSuggestion(null); // Close modal if open
+              fetchData(); 
           }
       } catch (err) {
           toast({ variant: "destructive", title: "Error adding rule" });
@@ -329,19 +329,19 @@ export default function Dashboard() {
       }
   };
 
+  const openSuggestionEdit = (s: RuleSuggestion) => {
+      setEditedSuggestionCategory(s.category);
+      setEditingSuggestion(s);
+  };
+
   const maxCategoryCount = stats ? Math.max(...Object.values(stats.categories || {}), 1) : 1;
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      {/* 
-          Main Header / Command Center Widgets 
-          Weather Widget acts as the "Hero" header spanning full width
-      */}
       <div className="flex flex-col gap-4">
           <div className="flex justify-between items-end mb-2">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                        {/* Personality Injection: Dynamic Greeting (Client-Side Only) */}
                         {greeting}
                     </h2>
                     <p className="text-muted-foreground flex items-center gap-2 mt-1">
@@ -381,7 +381,6 @@ export default function Dashboard() {
               <WeatherWidget />
           </div>
 
-          {/* Secondary Operational Widgets Below Weather */}
           <div className="grid gap-4 md:grid-cols-3">
               <CommodityTicker />
               <CommunityEvents />
@@ -397,7 +396,8 @@ export default function Dashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+             {/* ... existing overview content ... */}
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card className="hover:scale-[1.01] transition-transform duration-200 shadow-md hover:shadow-lg border-primary/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Today's Volume</CardTitle>
@@ -436,10 +436,6 @@ export default function Dashboard() {
                         tickLine={false}
                         axisLine={false}
                         tickFormatter={(value) => {
-                            // Fix: Use UTC components or timezone-agnostic parsing to prevent off-by-one errors
-                            // "YYYY-MM-DD" parsed by `new Date()` is UTC midnight. 
-                            // `toLocaleDateString` shifts it to local time (e.g. previous day 7pm).
-                            // Solution: Append 'T00:00:00' to force local midnight context for formatting
                             const [year, month, day] = value.split('-');
                             const date = new Date(Number(year), Number(month) - 1, Number(day));
                             return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
@@ -476,7 +472,6 @@ export default function Dashboard() {
                             return (
                                 <div key={category} className="space-y-1">
                                     <div className="flex items-center justify-between text-sm">
-                                        {/* Added Link to Gmail Label */}
                                         <a 
                                             href={`https://mail.google.com/mail/u/0/#label/${encodeURIComponent(category)}`}
                                             target="_blank"
@@ -499,6 +494,7 @@ export default function Dashboard() {
         </TabsContent>
 
         <TabsContent value="activity" className="space-y-4">
+             {/* ... existing activity content ... */}
              <div className="flex items-center justify-between gap-4">
                  <div className="flex items-center flex-1 gap-2">
                      <Search className="h-4 w-4 text-muted-foreground" />
@@ -665,15 +661,50 @@ export default function Dashboard() {
                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                              {suggestions.map((s, i) => (
                                  <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-background rounded-md border shadow-sm">
-                                     <div className="overflow-hidden">
+                                     <div className="overflow-hidden flex-1 mr-2">
                                          <div className="font-medium truncate text-sm" title={s.sender}>{s.sender}</div>
                                          <div className="text-xs text-muted-foreground flex items-center gap-1">
                                              To: <Badge variant="secondary" className="text-[10px] h-4">{s.category}</Badge>
                                          </div>
                                      </div>
-                                     <Button size="sm" variant="outline" onClick={() => handleAddRule(s.sender, s.category)}>
-                                         Add
-                                     </Button>
+                                     
+                                     {/* Suggestion Edit Dialog */}
+                                     <Dialog>
+                                         <DialogTrigger asChild>
+                                             <Button size="sm" variant="outline" onClick={() => openSuggestionEdit(s)}>
+                                                Review
+                                             </Button>
+                                         </DialogTrigger>
+                                         <DialogContent>
+                                             <DialogHeader>
+                                                 <DialogTitle>Add Rule for {s.sender}</DialogTitle>
+                                                 <DialogDescription>
+                                                     Confirm or change the category for this sender.
+                                                 </DialogDescription>
+                                             </DialogHeader>
+                                             <div className="py-4 space-y-4">
+                                                 <div className="space-y-2">
+                                                     <Label>Category</Label>
+                                                     <Select 
+                                                        value={editedSuggestionCategory || s.category} 
+                                                        onValueChange={setEditedSuggestionCategory}
+                                                     >
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                        </SelectContent>
+                                                     </Select>
+                                                 </div>
+                                             </div>
+                                             <DialogFooter>
+                                                 <Button onClick={() => handleAddRule(s.sender, editedSuggestionCategory || s.category)}>
+                                                     Confirm Rule
+                                                 </Button>
+                                             </DialogFooter>
+                                         </DialogContent>
+                                     </Dialog>
                                  </div>
                              ))}
                          </div>
@@ -692,10 +723,11 @@ export default function Dashboard() {
                      <div className="flex items-end gap-4 border-b pb-4">
                          <div className="space-y-2 flex-1">
                              <label className="text-sm font-medium">Sender (contains text)</label>
+                             {/* FIXED: Correct state setter */}
                              <Input 
                                 placeholder="e.g. @bankofamerica.com" 
                                 value={newRuleSender}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => setNewRuleSender(e.target.value)} 
                              />
                          </div>
                          <div className="space-y-2 w-[200px]">

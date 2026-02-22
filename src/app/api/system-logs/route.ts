@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSystemLogs } from '@/lib/logging-service';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const limit = parseInt(searchParams.get('limit') || '50', 10);
@@ -10,6 +12,6 @@ export async function GET(request: Request) {
       const { logs, nextPageToken } = await getSystemLogs(limit, pageToken);
       return NextResponse.json({ logs, nextPageToken });
   } catch (error) {
-      return NextResponse.json({ logs: [], error: 'Failed to fetch logs' }, { status: 500 });
+      return NextResponse.json({ logs: [], error: 'Failed' }, { status: 500 });
   }
 }

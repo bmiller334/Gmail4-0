@@ -3,7 +3,7 @@ export const EMAIL_CATEGORIES = [
   "Finance",
   "Manual Sort",
   "Marketing",
-  "Newslettter",
+  "Newsletter",
   "Promotions",
   "Security Alerts",
   "Social",

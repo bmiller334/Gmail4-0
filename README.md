@@ -1,3 +1,6 @@
+# Deployed URL
+[https://nextn-email-sorter-fuuedc4idq-uc.a.run.app](https://nextn-email-sorter-fuuedc4idq-uc.a.run.app)
+
 # Project Context: AI-Powered Inbox Zero Manager (Syracuse Hardware Command Center)
 
 **For Future AI Agents & Developers:**
@@ -89,7 +92,14 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to b
 
 If logs show `Error: invalid_grant` (Token has been expired or revoked), the **Refresh Token** has likely expired or the user changed their password.
 
-**Resolution Steps:**
+### Permanent Prevention (Stop it from happening every 7 days)
+By default, Google projects in **"Testing"** mode expire tokens every 7 days.
+1.  Go to **[OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)** in Google Cloud Console.
+2.  Click **"PUBLISH APP"** to move it to **Production** status.
+3.  **Note on Verification:** Google will warn you that the app needs verification. **You can ignore this.** Since you are the only user, you just need to click "Advanced" -> "Go to [App Name] (unsafe)" when authorizing. You do **NOT** need to submit for a formal review.
+4.  Generate a new token (steps below) one last time. It will now be long-lived.
+
+### Resolution Steps:
 1.  Go to the [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
 2.  Navigate to **APIs & Services > Credentials** and find your **OAuth 2.0 Client ID**.
 3.  Go to the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground).
@@ -100,7 +110,7 @@ If logs show `Error: invalid_grant` (Token has been expired or revoked), the **R
     *   `https://www.googleapis.com/auth/gmail.modify`
     *   `https://www.googleapis.com/auth/calendar.events`
     *   `https://www.googleapis.com/auth/calendar.readonly`
-6.  Click **Authorize APIs**.
+6.  Click **Authorize APIs**. (Remember to click **Advanced -> Go to...** on the warning screen).
 7.  Exchange the authorization code for tokens.
 8.  Copy the new **Refresh Token**.
 9.  **Update Cloud Run**:
