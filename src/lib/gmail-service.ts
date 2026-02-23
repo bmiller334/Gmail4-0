@@ -12,6 +12,7 @@ const getAuthClient = async () => {
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
 
   if (clientId && clientSecret && refreshToken) {
+      console.log("[Auth] Using OAuth2 with provided credentials.");
       const oAuth2Client = new google.auth.OAuth2(
         clientId,
         clientSecret,
@@ -20,6 +21,9 @@ const getAuthClient = async () => {
       oAuth2Client.setCredentials({ refresh_token: refreshToken });
       return oAuth2Client;
   } else {
+      console.log("[Auth] Missing OAuth2 credentials (clientId/secret/refreshToken). Falling back to Application Default Credentials.");
+      console.log(`[Auth] Debug: clientId=${!!clientId}, clientSecret=${!!clientSecret}, refreshToken=${!!refreshToken}`);
+      
       // Fallback for Cloud Run default service account
       const auth = new google.auth.GoogleAuth({
         scopes: [
@@ -79,6 +83,21 @@ export async function listLabels(gmail?: gmail_v1.Gmail) {
   const client = gmail || await getGmailClient();
   const res = await client.users.labels.list({ userId: 'me' });
   return res.data.labels;
+}
+
+export async function getUserLabels(gmail?: gmail_v1.Gmail): Promise<string[]> {
+  try {
+      const labels = await listLabels(gmail);
+      if (!labels) return [];
+      
+      return labels
+          .filter(l => l.type === 'user') // Only user created labels
+          .map(l => l.name || "")
+          .filter(name => name !== "");
+  } catch (error) {
+      console.error("Failed to fetch user labels:", error);
+      return [];
+  }
 }
 
 export async function moveEmailToCategory(

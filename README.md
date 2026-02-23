@@ -9,7 +9,7 @@ This document serves as the primary context source for the current state of the 
 ## 1. Project Overview
 This is a **Next.js** application deployed on **Google Cloud Run** designed to be a central command center for a hardware store owner in Syracuse, KS.
 *   **Goal**: Maintain "Inbox Zero" by moving emails to static categories (Labels) and provide critical operational data (Weather, Commodity Prices, Staff Notes).
-*   **Primary AI**: **Gemini 2.5 Flash** (via Genkit).
+*   **Primary AI**: **Gemini 2.5 Flash** (via Genkit). **IMPORTANT: GEMINI'S KNOWLEDGE IS OUTDATED, GEMINI 1.5 FLASH IS DEPRECATED AND CAN NO LONGER BE USED. DO NOT USE IT UNDER ANY CIRCUMSTANCE**
 *   **Trigger**: Real-time event listening via Google Cloud Pub/Sub (Push Notifications), not polling.
 
 ## 2. Architecture & Data Flow
@@ -178,15 +178,15 @@ npx tsx scripts/setup-gmail-watch.ts
     *   Fields: `id`, `sender` (email or pattern), `category`, `createdAt`.
 *   **`store_notes`**: Stores shift handoff notes.
     *   Fields: `id`, `content`, `createdAt`, `author`.
-*   **`settings`**: Stores app configuration (currently used for dynamic categories if enabled).
-    *   Doc: `email_categories` -> Fields: `categories` (Array).
+*   **`settings`**: (Legacy/Unused) Previously used for manual category configuration.
 
 ## 8. Configuration & Utility Scripts
 
-### Categories
-Default categories (defined in `src/lib/categories.ts`):
-- `[Action Required]`, `Finance`, `Manual Sort`, `Marketing`, `Newslettter`, `Promotions`, `Security Alerts`, `Social`, `Updates`, `Work`.
-- The system supports fetching dynamic categories from Firestore (`settings` collection) if configured.
+### Categories (Dynamic)
+The system **dynamically fetches user-created labels** directly from the authenticated Gmail account.
+*   **Source**: Gmail User Labels (ignores default system labels like 'Promotions' or 'Social').
+*   **Fallback**: If no user labels exist, it defaults to: `[Action Required]`, `Finance`, `Manual Sort`, `Marketing`, `Newsletter`, `Promotions`, `Security Alerts`, `Social`, `Updates`, `Work`.
+*   **Manual Sort**: Automatically included as an option for the AI to signal uncertainty.
 
 ### Scripts (`scripts/`)
 *   `setup-gmail-watch.ts`: Sets up the push notification watch on the Gmail Inbox.
