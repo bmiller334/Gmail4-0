@@ -61,6 +61,7 @@ import { WeatherWidget } from "./weather-widget";
 import { CommodityTicker } from "./commodity-ticker";
 import { ShiftNotes } from "./shift-notes";
 import { CommunityEvents } from "./community-events";
+import { StatusIndicator } from "./status-indicator";
 
 // Types
 type DashboardStats = {
@@ -367,15 +368,12 @@ export default function Dashboard() {
                 </div>
                 
                 <div className="flex items-center space-x-4">
+                    <StatusIndicator />
                     <div className="flex items-center space-x-2 text-sm text-muted-foreground hidden md:flex">
                         <Activity className="h-4 w-4" />
                         <span>{loading ? "Updating..." : "System Active"}</span>
                     </div>
-                    <Link href="/logs" passHref>
-                        <Button variant="outline" size="icon" title="System Logs">
-                            <Terminal className="h-4 w-4" />
-                        </Button>
-                    </Link>
+                    {/* Removed Log Button since Indicator links there */}
                     <Button variant="outline" size="icon" onClick={fetchData}>
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     </Button>
