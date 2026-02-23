@@ -3,14 +3,19 @@ import { classifyEmail } from "@/ai/email-classifier";
 import { moveEmailToCategory, getGmailClient } from "@/lib/gmail-service";
 import { logEmailProcessing, getStats } from "@/lib/db-service";
 
-export const maxDuration = 3000; 
+export const maxDuration = 300; 
 const HARD_LIMIT = 1300;
 
 export const dynamic = 'force-dynamic'; // Ensure no caching
 
-export async function POST() {
+export async function POST(req: Request) {
   console.log("Cleanup API: Starting process...");
   try {
+    const { batchSize = 10 } = await req.json().catch(() => ({}));
+    
+    // Validate batch size
+    const limit = Math.min(Math.max(1, batchSize), 50); // Hard cap at 50 per request to avoid timeout
+
     const stats = await getStats(1); 
     const currentUsage = stats?.totalProcessed || 0;
     console.log(`Cleanup API: Current usage is ${currentUsage}/${HARD_LIMIT}`);
@@ -24,12 +29,11 @@ export async function POST() {
 
     const gmail = await getGmailClient();
     
-    // Fetch 10 emails
-    console.log("Cleanup API: Fetching unread emails from INBOX...");
+    console.log(`Cleanup API: Fetching unread emails from INBOX (limit: ${limit})...`);
     const response = await gmail.users.messages.list({
         userId: 'me',
         q: 'label:INBOX is:unread',
-        maxResults: 10, 
+        maxResults: limit, 
     });
 
     const messages = response.data.messages;
@@ -93,7 +97,8 @@ export async function POST() {
 
     for (const msg of messages) {
         await processMessage(msg);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Reduced delay to speed up larger batches while still being gentle
+        await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     return NextResponse.json({ 

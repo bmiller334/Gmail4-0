@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar, X } from "lucide-react"; 
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar, X, Settings2 } from "lucide-react"; 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recha
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { Slider } from "@/components/ui/slider";
 
 // New Components
 import { WeatherWidget } from "./weather-widget";
@@ -142,6 +143,9 @@ export default function Dashboard() {
   const [editingSuggestion, setEditingSuggestion] = useState<RuleSuggestion | null>(null);
   const [editedSuggestionCategory, setEditedSuggestionCategory] = useState<string>("");
 
+  const [cleanupCount, setCleanupCount] = useState<number>(10);
+  const DAILY_HARD_LIMIT = 1300;
+
   const { toast } = useToast();
 
   const fetchData = async () => {
@@ -212,11 +216,15 @@ export default function Dashboard() {
       setCleaning(true);
       toast({
           title: "Starting Cleanup",
-          description: "Processing up to 10 emails from your inbox...",
+          description: `Processing up to ${cleanupCount} emails from your inbox...`,
       });
 
       try {
-          const res = await fetch('/api/cleanup', { method: 'POST' });
+          const res = await fetch('/api/cleanup', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ batchSize: cleanupCount })
+          });
           const data = await res.json();
 
           if (res.ok) {
@@ -335,6 +343,7 @@ export default function Dashboard() {
   };
 
   const maxCategoryCount = stats ? Math.max(...Object.values(stats.categories || {}), 1) : 1;
+  const remainingQuota = Math.max(0, DAILY_HARD_LIMIT - (stats?.totalProcessed || 0));
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -370,10 +379,42 @@ export default function Dashboard() {
                     <Button variant="outline" size="icon" onClick={fetchData}>
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     </Button>
-                    <Button onClick={handleCleanup} disabled={cleaning}>
-                        {cleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
-                        {cleaning ? "Cleaning..." : "Clean Inbox"}
-                    </Button>
+                    
+                    <Popover>
+                        <PopoverTrigger asChild>
+                             <Button disabled={cleaning} className="min-w-[140px]">
+                                {cleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
+                                {cleaning ? "Cleaning..." : `Clean (${cleanupCount})`}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80">
+                            <div className="grid gap-4">
+                                <div className="space-y-2">
+                                    <h4 className="font-medium leading-none">Clean Quantity</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                        Adjust how many emails to process at once.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <Slider 
+                                        defaultValue={[10]} 
+                                        max={Math.min(50, remainingQuota)} // Cap at 50 for safety/timeout reasons per batch, or remaining quota
+                                        min={10} 
+                                        step={10} 
+                                        value={[cleanupCount]}
+                                        onValueChange={(val) => setCleanupCount(val[0])}
+                                    />
+                                    <span className="w-8 text-sm font-bold">{cleanupCount}</span>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                    Remaining Daily Quota: {remainingQuota}
+                                </div>
+                                <Button size="sm" onClick={handleCleanup} disabled={cleaning || remainingQuota <= 0}>
+                                    Run Cleanup
+                                </Button>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
                 </div>
           </div>
 
