@@ -34,7 +34,7 @@ const EXCLUDED_USER_AGENTS = [
     'kube-probe', // Kubernetes probes
 ];
 
-export async function getSystemLogs(limit = 50, pageToken?: string): Promise<{ logs: LogEntry[], nextPageToken?: string }> {
+export async function getSystemLogs(limit = 20, pageToken?: string, search?: string): Promise<{ logs: LogEntry[], nextPageToken?: string }> {
     try {
         // Fetch logs from the last 7 days
         const sevenDaysAgo = new Date();
@@ -47,7 +47,7 @@ export async function getSystemLogs(limit = 50, pageToken?: string): Promise<{ l
         // 4. Prioritize application logs over system infrastructure logs
         // 5. Exclude OPTIONS requests (often CORS preflight)
         // 6. Exclude favicon.ico requests
-        const filter = `
+        let filter = `
             resource.type = "cloud_run_revision"
             AND resource.labels.service_name = "nextn-email-sorter"
             AND timestamp >= "${timeString}"
@@ -56,6 +56,12 @@ export async function getSystemLogs(limit = 50, pageToken?: string): Promise<{ l
             AND NOT textPayload : "GET /favicon.ico"
             AND NOT httpRequest.requestMethod = "OPTIONS"
         `.replace(/\s+/g, ' ').trim();
+
+        if (search) {
+            // Escape double quotes in search term to avoid breaking the filter string
+            const safeSearch = search.replace(/"/g, '\\"');
+            filter += ` AND "${safeSearch}"`;
+        }
         
         const [entries, nextQuery, response] = await logging.getEntries({
             filter,

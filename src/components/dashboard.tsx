@@ -62,6 +62,7 @@ import { CommodityTicker } from "./commodity-ticker";
 import { ShiftNotes } from "./shift-notes";
 import { CommunityEvents } from "./community-events";
 import { StatusIndicator } from "./status-indicator";
+import { MonarchWidget } from "./monarch-widget";
 
 // Types
 type DashboardStats = {
@@ -420,7 +421,8 @@ export default function Dashboard() {
               <WeatherWidget />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <MonarchWidget />
               <CommodityTicker />
               <CommunityEvents />
               <ShiftNotes />

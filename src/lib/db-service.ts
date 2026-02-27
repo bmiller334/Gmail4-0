@@ -73,23 +73,34 @@ export type StoreNote = {
 
 // ... Existing Functions ...
 
+// Helper function to get Mountain Time date string
+function getMountainDateString(date: Date = new Date()): string {
+    return date.toLocaleDateString("en-CA", { timeZone: "America/Denver" });
+}
+
 export async function logEmailProcessing(data: EmailLog) {
     try {
         const batch = db.batch();
         const logRef = db.collection(COLLECTION_LOGS).doc(data.id);
         batch.set(logRef, { ...data, timestamp: data.timestamp });
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = getMountainDateString();
         
         // Ensure stat doc exists first
         const statsRef = db.collection(COLLECTION_STATS).doc(today);
         await statsRef.set({ lastUpdated: new Date() }, { merge: true });
         
         const { FieldValue } = require('firebase-admin/firestore');
+
+        // Firestore paths cannot contain '[', ']', '*', or '/'.
+        // We need to sanitize keys used in the path map.
+        const safeCategory = data.category.replace(/[\/\[\]\.]/g, '_'); 
+        const safeSender = data.sender.replace(/[\/\[\]\.]/g, '_');
+
         await statsRef.update({
             totalProcessed: FieldValue.increment(1),
-            [`categories.${data.category}`]: FieldValue.increment(1),
-            [`senders.${data.sender.replace(/\./g, '_')}`]: FieldValue.increment(1)
+            [`categories.${safeCategory}`]: FieldValue.increment(1),
+            [`senders.${safeSender}`]: FieldValue.increment(1)
         });
         
         console.log("Logged email processing to Firestore");
@@ -161,7 +172,7 @@ export async function getStats(days: number): Promise<{ date: string; [key: stri
 export async function getStats(days = 1): Promise<DocumentData | null | { date: string; [key: string]: any }[]> {
     try {
         if (days === 1) {
-             const today = new Date().toISOString().split('T')[0];
+             const today = getMountainDateString();
              const doc = await db.collection(COLLECTION_STATS).doc(today).get();
              if (!doc.exists) return null;
              return doc.data() || null;
@@ -171,7 +182,7 @@ export async function getStats(days = 1): Promise<DocumentData | null | { date: 
              for(let i=0; i<days; i++) {
                  const d = new Date(today);
                  d.setDate(d.getDate() - i);
-                 const dateStr = d.toISOString().split('T')[0];
+                 const dateStr = getMountainDateString(d);
                  promises.push(db.collection(COLLECTION_STATS).doc(dateStr).get());
              }
              const docs = await Promise.all(promises);
@@ -179,7 +190,7 @@ export async function getStats(days = 1): Promise<DocumentData | null | { date: 
                  const date = new Date(today);
                  date.setDate(date.getDate() - i);
                  return {
-                     date: date.toISOString().split('T')[0],
+                     date: getMountainDateString(date),
                      ...(d.exists ? d.data() : { totalProcessed: 0 })
                  };
              }).reverse();
