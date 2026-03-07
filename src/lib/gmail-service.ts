@@ -2,6 +2,7 @@
 
 import { google } from "googleapis";
 import { GoogleAuth, OAuth2Client } from "google-auth-library";
+import { getStoredRefreshToken } from "@/lib/db-service";
 
 // GLOBAL CACHE: Keeps label IDs in memory while the server is warm.
 let labelCache: Record<string, string> = {};
@@ -10,14 +11,28 @@ let labelCache: Record<string, string> = {};
 const getAuthClient = async () => {
   const clientId = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-  const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+  
+  // 1. Try to get token from Firestore (Dynamic)
+  let refreshToken = await getStoredRefreshToken();
+
+  // 2. If not in Firestore, fall back to Env Var (Static)
+  if (!refreshToken) {
+      refreshToken = process.env.GMAIL_REFRESH_TOKEN || null;
+      if (refreshToken) {
+          console.log("[Auth] Using Refresh Token from Environment Variables.");
+      }
+  } else {
+      console.log("[Auth] Using Refresh Token from Firestore.");
+  }
+
+  const redirectUri = process.env.GMAIL_REDIRECT_URI || "https://developers.google.com/oauthplayground";
 
   if (clientId && clientSecret && refreshToken) {
-      console.log("[Auth] Using OAuth2 with provided credentials.");
+      // console.log("[Auth] Using OAuth2 with provided credentials.");
       const oAuth2Client = new google.auth.OAuth2(
         clientId,
         clientSecret,
-        "https://developers.google.com/oauthplayground" 
+        redirectUri
       );
       oAuth2Client.setCredentials({ 
           refresh_token: refreshToken 
@@ -31,9 +46,12 @@ const getAuthClient = async () => {
              const { credentials } = await oAuth2Client.refreshAccessToken();
              oAuth2Client.setCredentials(credentials);
           }
-      } catch (error) {
-          console.error("[Auth] Failed to refresh token:", error);
-          // If refresh fails, it might be revoked. We can't do much but let it fail downstream.
+      } catch (error: any) {
+          console.error("[Auth] FATAL: Failed to refresh access token.", error.message);
+          if (error.response) {
+              console.error("[Auth] Error details:", error.response.data);
+          }
+          throw new Error("Invalid Grant: Failed to refresh access token. Please generate a new Refresh Token.");
       }
       
       return oAuth2Client;

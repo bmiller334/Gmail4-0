@@ -24,6 +24,7 @@ export const COLLECTION_RULES = 'email_rules';
 export const COLLECTION_NOTES = 'store_notes';
 export const COLLECTION_SETTINGS = 'settings'; 
 export const DOC_CATEGORIES = 'email_categories'; 
+export const DOC_AUTH = 'google_auth'; // New document for Auth
 
 // ... Types ...
 export type EmailLog = {
@@ -299,6 +300,34 @@ export async function saveStoredCategories(categories: string[]) {
         });
     } catch (error) {
         console.error("Error saving categories:", error);
+        throw error;
+    }
+}
+
+// --- Token Management ---
+
+export async function getStoredRefreshToken(): Promise<string | null> {
+    try {
+        const doc = await db.collection(COLLECTION_SETTINGS).doc(DOC_AUTH).get();
+        if (doc.exists && doc.data()?.refreshToken) {
+            return doc.data()?.refreshToken;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching stored refresh token:", error);
+        return null;
+    }
+}
+
+export async function saveRefreshToken(refreshToken: string) {
+    try {
+        await db.collection(COLLECTION_SETTINGS).doc(DOC_AUTH).set({
+            refreshToken,
+            updatedAt: new Date()
+        });
+        console.log("Successfully saved refresh token to Firestore.");
+    } catch (error) {
+        console.error("Error saving refresh token:", error);
         throw error;
     }
 }
