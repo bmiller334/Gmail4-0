@@ -7,14 +7,21 @@ import { useSearchParams } from 'next/navigation';
 
 export default function GmailConnectButton() {
   const [loading, setLoading] = useState(false);
+  const [redirectUri, setRedirectUri] = useState<string | null>(null);
   const searchParams = useSearchParams();
-  const authStatus = searchParams.get('auth');
+  const authStatus = searchParams?.get('auth');
 
   const handleConnect = async () => {
     setLoading(true);
+    setRedirectUri(null); // Clear previous URI
     try {
       const res = await fetch('/api/auth/google/url');
       const data = await res.json();
+      console.log('Redirecting to:', data.url);
+      if (data.redirectUri) {
+          setRedirectUri(data.redirectUri);
+      }
+
       if (data.url) {
         window.location.href = data.url;
       } else {
@@ -46,9 +53,17 @@ export default function GmailConnectButton() {
   }
 
   return (
-    <Button onClick={handleConnect} disabled={loading} variant="outline" className="gap-2 bg-slate-900 border-slate-800 hover:bg-slate-800 hover:text-white">
-      <Zap className="w-4 h-4 text-yellow-400" />
-      {loading ? 'Redirecting...' : 'Reconnect Gmail'}
-    </Button>
+    <div className="flex flex-col gap-2">
+      <Button onClick={handleConnect} disabled={loading} variant="outline" className="gap-2 bg-slate-900 border-slate-800 hover:bg-slate-800 hover:text-white">
+        <Zap className="w-4 h-4 text-yellow-400" />
+        {loading ? 'Redirecting...' : 'Reconnect Gmail'}
+      </Button>
+      {redirectUri && (
+          <div className="text-xs text-muted-foreground break-all p-2 border rounded bg-slate-950">
+              <p className="font-semibold mb-1">Make sure this URI is authorized in Google Cloud Console:</p>
+              <code>{redirectUri}</code>
+          </div>
+      )}
+    </div>
   );
 }

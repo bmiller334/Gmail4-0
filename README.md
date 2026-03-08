@@ -196,3 +196,17 @@ The system **dynamically fetches user-created labels** directly from the authent
 *   `diagnose-connection.ts`: Diagnostics for connectivity.
 *   `test-logging.ts`: Tests writing to Google Cloud Logging.
 
+## 9. Frontend Authentication Integration
+We have integrated a frontend-based re-authentication flow to simplify token renewal.
+Instead of running local scripts, you can now re-authenticate directly from the **System Logs** page if an `invalid_grant` error is detected.
+
+**Prerequisite:**
+You must add the callback URL to your Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client ID > **Authorized redirect URIs**.
+*   URL: `https://nextn-email-sorter-fuuedc4idq-uc.a.run.app/api/auth/google/callback`
+
+**How it works:**
+1.  The frontend calls `/api/auth/google/url` to get the OAuth link.
+2.  User approves access.
+3.  Google redirects to `/api/auth/google/callback`.
+4.  The backend saves the new **Refresh Token** to Firestore (`settings/google_auth`).
+5.  `src/lib/gmail-service.ts` automatically prioritizes the Firestore token over the environment variable.

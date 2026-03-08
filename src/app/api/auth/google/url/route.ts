@@ -14,6 +14,11 @@ export async function GET(request: Request) {
   // We'll construct it dynamically so it works on localhost and production
   const redirectUri = `${protocol}://${host}/api/auth/google/callback`;
 
+  console.log("---------------------------------------------------");
+  console.log("Generated Redirect URI:", redirectUri);
+  console.log("Please ensure this URI is added to your Google Cloud Console > Credentials > Authorized redirect URIs");
+  console.log("---------------------------------------------------");
+
   if (!clientId || !clientSecret) {
     return NextResponse.json({ error: "Missing Client ID or Secret" }, { status: 500 });
   }
@@ -35,5 +40,6 @@ export async function GET(request: Request) {
     scope: scopes,
   });
 
-  return NextResponse.json({ url });
+  // Return the redirectUri as well so the client can display it if needed
+  return NextResponse.json({ url, redirectUri });
 }
