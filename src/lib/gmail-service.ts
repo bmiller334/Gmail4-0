@@ -185,3 +185,19 @@ export async function moveEmailToCategory(
       throw error;
   }
 }
+
+export async function getInboxCount() {
+    try {
+        const gmail = await getGmailClient();
+        const res = await gmail.users.labels.get({
+            userId: 'me',
+            id: 'INBOX'
+        });
+        
+        // return messagesTotal for total messages, or threadsTotal for threads
+        return res.data.messagesTotal || 0;
+    } catch (error) {
+        console.error("Failed to fetch inbox count:", error);
+        return 0;
+    }
+}

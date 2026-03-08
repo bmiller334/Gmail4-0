@@ -365,6 +365,10 @@ export default function Dashboard() {
                                 Ready for the day?
                             </>
                         )}
+                        <span className="opacity-30">|</span> 
+                        <a href="https://mail.google.com/mail/u/0/" target="_blank" className="hover:underline hover:text-primary transition-colors cursor-pointer">
+                            Inbox: <span className="font-bold">{stats?.totalProcessed || 0}</span>
+                        </a>
                     </p>
                 </div>
                 

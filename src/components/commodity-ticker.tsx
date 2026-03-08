@@ -14,7 +14,7 @@ const COMMODITIES = [
 
 export function CommodityTicker() {
     return (
-        <Card>
+        <Card className="h-full flex flex-col justify-center">
             <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Market Pulse</CardTitle>
             </CardHeader>
