@@ -81,9 +81,9 @@ function getMountainDateString(date: Date = new Date()): string {
 
 export async function logEmailProcessing(data: EmailLog) {
     try {
-        const batch = db.batch();
+        // FIX: Replaced batch with direct set because batch.commit() was missing
         const logRef = db.collection(COLLECTION_LOGS).doc(data.id);
-        batch.set(logRef, { ...data, timestamp: data.timestamp });
+        await logRef.set({ ...data, timestamp: data.timestamp });
 
         const today = getMountainDateString();
         

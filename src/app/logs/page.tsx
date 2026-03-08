@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, Terminal, ChevronDown, Zap, BarChart3, TrendingUp, Clock, Bug, Search, Loader2 } from 'lucide-react';
+import { RefreshCw, Terminal, ChevronDown, Zap, BarChart3, TrendingUp, Clock, Bug, Search, Loader2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from "@/components/ui/progress";
 import { useDebounce } from '@/hooks/use-debounce';
+import GmailConnectButton from '@/components/auth/gmail-connect-button'; // Import the button
 
 type LogEntry = {
     timestamp: string;
@@ -27,7 +28,7 @@ const SEVERITY_COLORS: Record<string, string> = {
     'DEFAULT': 'text-gray-300'
 };
 
-export default function LogsPage() {
+function LogsContent() {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [loading, setLoading] = useState(false);
     const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
@@ -50,6 +51,9 @@ export default function LogsPage() {
             const params = new URLSearchParams({ limit: pageLimit.toString() });
             if (token) params.set('pageToken', token);
             if (search) params.set('search', search);
+            
+            // Add a cache-busting timestamp to force fresh fetch
+            params.set('_t', Date.now().toString());
             
             const res = await fetch(`/api/system-logs?${params}`);
             const data = await res.json();
@@ -74,6 +78,12 @@ export default function LogsPage() {
             fetchLogs(nextPageToken, true, debouncedSearchTerm);
         }
     };
+
+    const hasAuthError = logs.some(log => 
+        log.message.includes('invalid_grant') || 
+        log.message.includes('Token has been expired') || 
+        log.message.includes('unauthorized_client')
+    );
 
     return (
         <div className="container mx-auto p-6 max-w-7xl h-screen flex flex-col gap-6">
@@ -106,6 +116,40 @@ export default function LogsPage() {
                         {autoRefresh ? 'Auto Refresh On' : 'Refresh'}
                     </Button>
                 </div>
+
+                {hasAuthError && (
+                    <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-lg flex flex-col gap-3 animate-pulse">
+                        <div className="flex items-center gap-3">
+                            <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
+                            <div>
+                                <p className="font-bold text-red-500">Authentication Error Detected</p>
+                                <p className="text-xs mt-1 text-red-300">
+                                    The system is failing to authenticate with Gmail ("invalid_grant").
+                                </p>
+                            </div>
+                        </div>
+                        <div className="pl-8 text-sm text-red-300/80 space-y-2">
+                             <p>You can re-authenticate directly from here:</p>
+                             <div className="flex flex-col gap-2">
+                                <div className="text-xs bg-black/20 p-2 rounded">
+                                    <strong>Prerequisite:</strong> Ensure 
+                                    <code className="mx-1 text-white select-all">https://nextn-email-sorter-fuuedc4idq-uc.a.run.app/api/auth/google/callback</code> 
+                                    is added to <strong>Authorized redirect URIs</strong> in your Google Cloud Console.
+                                </div>
+                                <div className="w-fit">
+                                    <GmailConnectButton />
+                                </div>
+                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Show the button even if no error detected, just in case manual re-auth is needed */}
+                {!hasAuthError && (
+                    <div className="flex justify-end">
+                        <GmailConnectButton />
+                    </div>
+                )}
 
                 <div className="flex gap-4 items-center bg-slate-900/50 p-3 rounded-lg border border-slate-800">
                     <Search className="w-4 h-4 text-slate-400" />
@@ -166,4 +210,12 @@ export default function LogsPage() {
             </Card>
         </div>
     );
+}
+
+export default function LogsPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center">Loading logs...</div>}>
+      <LogsContent />
+    </Suspense>
+  );
 }

@@ -2,7 +2,8 @@ import "@/lib/env-fix";
 import { Logging } from '@google-cloud/logging';
 
 // Ensure we have a project ID to avoid initialization errors
-const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID || 'gmail4-0';
+// Cloud Run injects GOOGLE_CLOUD_PROJECT, but we also support GOOGLE_CLOUD_PROJECT_ID
+const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT_ID || 'gmail4-0';
 
 let logging: Logging;
 
@@ -41,12 +42,13 @@ export async function getSystemLogs(limit = 20, pageToken?: string, search?: str
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const timeString = sevenDaysAgo.toISOString();
 
-        // 1. Base Filter: Cloud Run service logs
-        // 2. Exclude health checks (Google-HC) to reduce noise
-        // 3. Exclude static asset requests (/_next/)
-        // 4. Prioritize application logs over system infrastructure logs
-        // 5. Exclude OPTIONS requests (often CORS preflight)
-        // 6. Exclude favicon.ico requests
+        // REFINED FILTER:
+        // 1. Focus on the specific service to avoid cross-service noise.
+        // 2. Exclude health checks (Google-HC).
+        // 3. Exclude static asset requests (/_next/, favicon).
+        // 4. Exclude high-frequency polling endpoints (/api/stats, /api/calendar, /api/weather, /api/system-logs).
+        // 5. Exclude OPTIONS requests.
+        
         let filter = `
             resource.type = "cloud_run_revision"
             AND resource.labels.service_name = "nextn-email-sorter"
@@ -55,6 +57,10 @@ export async function getSystemLogs(limit = 20, pageToken?: string, search?: str
             AND NOT textPayload : "GET /_next/"
             AND NOT textPayload : "GET /favicon.ico"
             AND NOT httpRequest.requestMethod = "OPTIONS"
+            AND NOT textPayload : "GET /api/stats"
+            AND NOT textPayload : "GET /api/calendar"
+            AND NOT textPayload : "GET /api/weather"
+            AND NOT textPayload : "GET /api/system-logs"
         `.replace(/\s+/g, ' ').trim();
 
         if (search) {
@@ -76,6 +82,13 @@ export async function getSystemLogs(limit = 20, pageToken?: string, search?: str
              if (log.message.includes("GET /_next/")) return false;
              if (log.message.includes("GET /favicon.ico")) return false;
              if (log.message.startsWith("OPTIONS ")) return false;
+             
+             // Additional in-memory filtering for partial matches or different log formats
+             if (log.message.includes("GET /api/stats")) return false;
+             if (log.message.includes("GET /api/calendar")) return false;
+             if (log.message.includes("GET /api/weather")) return false;
+             if (log.message.includes("GET /api/system-logs")) return false;
+
              return true;
         });
 
@@ -171,9 +184,7 @@ export async function getRecentErrorLogs(limit = 10): Promise<LogEntry[]> {
         const timeString = oneDayAgo.toISOString();
 
         const filter = `
-            resource.type="cloud_run_revision"
-            AND resource.labels.service_name="nextn-email-sorter"
-            AND severity >= ERROR 
+            severity >= ERROR 
             AND timestamp >= "${timeString}"
         `.replace(/\s+/g, ' ').trim();
 

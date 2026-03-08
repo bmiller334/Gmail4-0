@@ -11,7 +11,14 @@ export async function GET(request: Request) {
 
   try {
       const { logs, nextPageToken } = await getSystemLogs(limit, pageToken, search);
-      return NextResponse.json({ logs, nextPageToken });
+      
+      return NextResponse.json({ logs, nextPageToken }, {
+          headers: {
+              'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+          }
+      });
   } catch (error) {
       return NextResponse.json({ logs: [], error: 'Failed' }, { status: 500 });
   }
