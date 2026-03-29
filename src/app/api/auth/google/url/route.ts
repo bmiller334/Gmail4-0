@@ -7,12 +7,9 @@ export async function GET(request: Request) {
   const clientId = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
   
-  // Calculate dynamic redirect URI based on the request host
-  const host = request.headers.get("host");
-  const protocol = host?.includes("localhost") ? "http" : "https";
-  // The redirect URI must match exactly what is in Google Cloud Console
-  // We'll construct it dynamically so it works on localhost and production
-  const redirectUri = `${protocol}://${host}/api/auth/google/callback`;
+  // Use explicit environment variable for redirect URI (required for stable OAuth)
+  // Fall back to localhost if not specified
+  const redirectUri = process.env.GMAIL_REDIRECT_URI || "http://localhost:3000/api/auth/google/callback";
 
   console.log("---------------------------------------------------");
   console.log("Generated Redirect URI:", redirectUri);

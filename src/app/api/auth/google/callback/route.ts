@@ -23,7 +23,9 @@ export async function GET(request: Request) {
   // Construct the redirect URI exactly as it was sent in the initial request
   const host = request.headers.get("host");
   const protocol = host?.includes("localhost") ? "http" : "https";
-  const redirectUri = `${protocol}://${host}/api/auth/google/callback`;
+  
+  // Use explicit environment variable for Google's OAuth validation to prevent mismatch
+  const redirectUri = process.env.GMAIL_REDIRECT_URI || "http://localhost:3000/api/auth/google/callback";
 
   const oauth2Client = new google.auth.OAuth2(
     clientId,
