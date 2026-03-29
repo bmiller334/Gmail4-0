@@ -10,7 +10,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
 import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar, X, Settings2 } from "lucide-react"; 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input";
 import {
@@ -151,24 +151,34 @@ export default function Dashboard() {
 
   const { toast } = useToast();
 
-  const fetchData = async () => {
+  const filtersRef = useRef({ searchTerm, categoryFilter });
+
+  useEffect(() => {
+     filtersRef.current = { searchTerm, categoryFilter };
+  }, [searchTerm, categoryFilter]);
+
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
         const queryParams = new URLSearchParams();
-        if (searchTerm) queryParams.set('search', searchTerm);
-        if (categoryFilter && categoryFilter !== 'All') queryParams.set('category', categoryFilter);
+        const { searchTerm: currentSearch, categoryFilter: currentCategory } = filtersRef.current;
+        if (currentSearch) queryParams.set('search', currentSearch);
+        if (currentCategory && currentCategory !== 'All') queryParams.set('category', currentCategory);
 
-        const res = await fetch(`/api/stats?${queryParams.toString()}`);
+        const [res, suggestionsRes] = await Promise.all([
+            fetch(`/api/stats?${queryParams.toString()}`),
+            fetch('/api/rules/suggestions')
+        ]);
+        
         const data = await res.json();
+        const suggestionsData = await suggestionsRes.json();
+
         setStats(data.stats);
         setWeeklyStats(data.weeklyStats || []);
         setLogs(data.logs || []);
         setInsights(data.insights || []);
         setRules(data.rules || []);
         setInboxCount(data.inboxCount || 0);
-
-        const suggestionsRes = await fetch('/api/rules/suggestions');
-        const suggestionsData = await suggestionsRes.json();
         setSuggestions(suggestionsData.suggestions || []);
 
     } catch (err) {
@@ -176,14 +186,14 @@ export default function Dashboard() {
     } finally {
         setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
       const timer = setTimeout(() => {
           fetchData();
       }, 500);
       return () => clearTimeout(timer);
-  }, [searchTerm, categoryFilter]);
+  }, [searchTerm, categoryFilter, fetchData]);
 
   useEffect(() => {
     setCurrentDate(new Date());
@@ -208,13 +218,12 @@ export default function Dashboard() {
     
     fetchCalendar();
 
-    fetchData();
     const interval = setInterval(() => {
         fetchData();
         fetchCalendar();
     }, 30000);
     return () => clearInterval(interval);
-  }, []); 
+  }, [fetchData]); 
 
   const handleCleanup = async () => {
       setCleaning(true);
