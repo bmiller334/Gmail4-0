@@ -125,6 +125,7 @@ export default function Dashboard() {
   const [rules, setRules] = useState<SenderRule[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([]);
+  const [inboxCount, setInboxCount] = useState<number>(0);
   
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
@@ -164,6 +165,7 @@ export default function Dashboard() {
         setLogs(data.logs || []);
         setInsights(data.insights || []);
         setRules(data.rules || []);
+        setInboxCount(data.inboxCount || 0);
 
         const suggestionsRes = await fetch('/api/rules/suggestions');
         const suggestionsData = await suggestionsRes.json();
@@ -367,7 +369,7 @@ export default function Dashboard() {
                         )}
                         <span className="opacity-30">|</span> 
                         <a href="https://mail.google.com/mail/u/0/" target="_blank" className="hover:underline hover:text-primary transition-colors cursor-pointer">
-                            Inbox: <span className="font-bold">{stats?.totalProcessed || 0}</span>
+                            Inbox: <span className="font-bold">{inboxCount}</span>
                         </a>
                     </p>
                 </div>

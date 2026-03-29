@@ -29,7 +29,7 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to b
 
 3.  **Visualization (Command Center Dashboard)**:
     *   Frontend polls `/api/stats` to render real-time volume and category distribution.
-    *   **Smart Header**: Dynamically greets the user based on time of day and **next calendar event** (e.g., "Meeting with Supplier at 2pm").
+    *   **Smart Header**: Dynamically greets the user based on time of day and **next calendar event** (e.g., "Meeting with Supplier at 2pm"). It also displays a real-time count of emails remaining in the user's Inbox, functioning as a hyperlink directly to Gmail.
     *   **Store Widgets**:
         *   **Ag-Focused Weather**: Real-time weather for Syracuse, KS with agricultural advice.
         *   **Commodity Ticker**: Tracks Lumber, Copper, and Steel prices.
@@ -87,6 +87,10 @@ This is a **Next.js** application deployed on **Google Cloud Run** designed to b
 ### Firestore FieldValue Issues
 *   **Problem**: Updating nested fields (like `categories.Marketing`) in Firestore sometimes failed if the document didn't exist or fields weren't initialized.
 *   **Solution**: `src/lib/db-service.ts` uses a try-catch block with error code checking. If an update fails with `NOT_FOUND` (Error code 5), it performs a `set` operation to initialize the document.
+
+### Dashboard Revisions
+*   We experimented with a rotating widget layout but ultimately reverted to a standard grid layout for clarity and ease of use.
+*   The dashboard header now includes an accurate "Inbox" count, pulled directly from the Gmail API, displaying the number of emails currently residing in the user's Inbox label. This serves as a hyperlink to their actual Gmail inbox.
 
 ## 5. Troubleshooting: Invalid Grant / Expired Token
 
