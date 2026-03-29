@@ -3,131 +3,71 @@
 @tailwind utilities;
 
 body {
-  font-family: 'Inter', sans-serif;
-  /* Personality Injection: Subtle Dot Pattern overlay */
-  background-color: hsl(var(--background));
-  background-image: radial-gradient(hsl(var(--foreground) / 0.05) 1px, transparent 1px);
-  background-size: 24px 24px;
+  font-family: 'Outfit', sans-serif;
+  background-color: hsl(226 35% 9%); /* Deep dark slate */
+  background-image: 
+    radial-gradient(at 0% 0%, hsla(253, 50%, 20%, 0.15) 0, transparent 50%), 
+    radial-gradient(at 50% 0%, hsla(225, 40%, 30%, 0.2) 0, transparent 50%), 
+    radial-gradient(at 100% 0%, hsla(339, 45%, 30%, 0.15) 0, transparent 50%);
+  background-attachment: fixed;
+  color: hsl(210 40% 98%);
 }
 
 @layer base {
-  :root {
-    /* Custom Hex Palette (Converted to HSL) */
-    /* Blue: #1b85b8 (200 74% 41%) */
-    /* Dark Grey: #5a5255 (338 5% 34%) */
-    /* Green: #559e83 (158 30% 48%) */
-    /* Red: #ae5a41 (14 46% 47%) */
+  :root, .dark {
+    /* Glassmorphic Dark Pastel Layout */
+    --background: 226 35% 9%; 
+    --foreground: 210 40% 98%;
 
-    /* Background: Very Light Pastel Blue (Tint of #1b85b8) */
-    --background: 200 60% 96%; 
-    
-    /* Foreground: Dark Grey (#5a5255) */
-    --foreground: 338 5% 34%;
+    /* Cards - glassmorphic, handled mostly in the UI component, but fallback here */
+    --card: 226 35% 12%; 
+    --card-foreground: 210 40% 98%;
 
-    /* Cards: White */
-    --card: 0 0% 100%;
-    --card-foreground: 338 5% 34%;
+    --popover: 226 35% 12%;
+    --popover-foreground: 210 40% 98%;
 
-    /* Popovers */
-    --popover: 0 0% 100%;
-    --popover-foreground: 338 5% 34%;
+    /* Primary: Soft Pastel Mint / Cyan */
+    --primary: 160 50% 70%;
+    --primary-foreground: 226 80% 10%;
 
-    /* Primary: Blue (#1b85b8) */
-    --primary: 200 74% 41%; 
-    --primary-foreground: 0 0% 100%;
+    /* Secondary: Soft Pastel Lavender */
+    --secondary: 260 50% 75%;
+    --secondary-foreground: 226 80% 10%;
 
-    /* Secondary: Green (#559e83) - used for accents/secondary actions */
-    --secondary: 158 30% 90%; /* Light tint for bg */
-    --secondary-foreground: 158 30% 48%; /* Text color */
+    /* Muted: Deeper slate */
+    --muted: 226 30% 18%;
+    --muted-foreground: 226 20% 70%;
 
-    /* Muted: Light Grey/Mauve tint */
-    --muted: 338 10% 94%;
-    --muted-foreground: 338 5% 50%;
+    /* Accent: Pastel Pink/Peach */
+    --accent: 335 60% 75%;
+    --accent-foreground: 226 80% 10%;
 
-    /* Accent: Green (#559e83) - Hover states */
-    --accent: 158 30% 90%;
-    --accent-foreground: 158 30% 48%;
+    /* Destructive: Soft Coral */
+    --destructive: 0 60% 70%;
+    --destructive-foreground: 210 40% 98%;
 
-    /* Destructive: Terra Cotta (#ae5a41) */
-    --destructive: 14 46% 47%;
-    --destructive-foreground: 0 0% 98%;
+    --border: 226 30% 25%;
+    --input: 226 30% 20%;
+    --ring: 160 50% 70%;
 
-    /* Border: Light Blue-Grey */
-    --border: 200 20% 85%;
-    --input: 200 20% 85%;
-    --ring: 200 74% 41%;
-
-    --radius: 1rem;
-
-    /* Charts (Using the palette) */
-    --chart-1: 200 74% 41%; /* Blue */
-    --chart-2: 158 30% 48%; /* Green */
-    --chart-3: 14 46% 47%;  /* Red */
-    --chart-4: 338 5% 34%;  /* Grey */
-    --chart-5: 45 90% 60%;  /* Yellow (Extra pop) */
-    
-    /* Sidebar */
-    --sidebar-background: 200 60% 94%;
-    --sidebar-foreground: 338 5% 34%;
-    --sidebar-primary: 200 74% 41%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 158 30% 90%;
-    --sidebar-accent-foreground: 158 30% 48%;
-    --sidebar-border: 200 20% 80%;
-    --sidebar-ring: 200 74% 41%;
-  }
-
-  .dark {
-    /* Dark Mode Palette */
-    /* Background: Deep Blue-Grey */
-    --background: 200 40% 10%; 
-    --foreground: 200 20% 90%;
-    
-    --card: 200 40% 14%;
-    --card-foreground: 200 20% 90%;
-    
-    --popover: 200 40% 14%;
-    --popover-foreground: 200 20% 90%;
-    
-    /* Primary: Lighter Blue (#1b85b8 tint) */
-    --primary: 200 74% 60%; 
-    --primary-foreground: 0 0% 100%;
-
-    /* Secondary: Muted Green */
-    --secondary: 158 20% 25%;
-    --secondary-foreground: 158 30% 80%;
-
-    /* Muted */
-    --muted: 200 20% 20%;
-    --muted-foreground: 200 20% 65%;
-
-    /* Accent */
-    --accent: 158 20% 25%;
-    --accent-foreground: 158 30% 80%;
-
-    /* Destructive: Lighter Terra Cotta */
-    --destructive: 14 60% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 200 30% 25%;
-    --input: 200 30% 25%;
-    --ring: 200 74% 60%;
+    --radius: 1.2rem;
 
     /* Charts */
-    --chart-1: 200 74% 60%;
-    --chart-2: 158 40% 60%;
-    --chart-3: 14 60% 65%;
-    --chart-4: 338 10% 70%;
-    --chart-5: 45 90% 65%;
+    --chart-1: 160 50% 70%;  /* Mint */
+    --chart-2: 260 50% 75%;  /* Lavender */
+    --chart-3: 335 60% 75%;  /* Pink */
+    --chart-4: 45 80% 70%;   /* Yellow pastel */
+    --chart-5: 0 60% 70%;    /* Coral */
 
-    --sidebar-background: 200 40% 8%;
-    --sidebar-foreground: 200 20% 90%;
-    --sidebar-primary: 200 74% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 30% 20%;
-    --sidebar-accent-foreground: 200 20% 90%;
-    --sidebar-border: 200 30% 25%;
-    --sidebar-ring: 200 74% 60%;
+    /* Sidebar */
+    --sidebar-background: 226 35% 8%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 160 50% 70%;
+    --sidebar-primary-foreground: 226 80% 10%;
+    --sidebar-accent: 226 30% 18%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 226 30% 20%;
+    --sidebar-ring: 160 50% 70%;
   }
 }
 
@@ -136,6 +76,6 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-transparent text-foreground; /* Use the custom body background */
   }
 }
