@@ -5,7 +5,7 @@ const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
 if (credPath) {
     let shouldDelete = false;
-    
+
     if (credPath.includes("path/to/")) {
         shouldDelete = true;
     } else {

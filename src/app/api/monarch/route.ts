@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import fetchNode from 'node-fetch';
 
-const MONARCH_GRAPHQL_URL = 'https://api.monarchmoney.com/graphql';
+const MONARCH_GRAPHQL_URL = 'https://api.monarch.com/graphql';
 
 export async function POST(req: Request) {
   try {
@@ -11,15 +12,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'API Key is required' }, { status: 400 });
     }
 
-    // Sanitize key: ensure it doesn't duplicate "Token" if the user pasted the whole string
+    // Sanitize key
     if (apiKey.startsWith('Token ')) {
-        apiKey = apiKey.substring(6);
+        apiKey = apiKey.substring(6).trim();
     }
-    const authHeader = `Token ${apiKey.trim()}`;
+    const authHeader = `Token ${apiKey}`;
 
-    // Basic query to fetch accounts and net worth summary
     const query = `
-      query GetFinancialSummary {
+      query GetAccountsUltraLight {
         accounts {
           id
           displayName
@@ -31,17 +31,23 @@ export async function POST(req: Request) {
       }
     `;
 
-    const response = await fetch(MONARCH_GRAPHQL_URL, {
+    // We use node-fetch specifically because Next.js 15 native fetch (undici) 
+    // TLS fingerprints are often hit with a 525 SSL Handshake Failed from Cloudflare.
+    const response = await fetchNode(MONARCH_GRAPHQL_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': authHeader,
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36',
         'Origin': 'https://app.monarchmoney.com',
-        'Referer': 'https://app.monarchmoney.com/',
-        'Accept': '*/*'
+        'Accept': 'application/json',
+        'Client-Platform': 'web',
+        'device-uuid': 'unknown',
+        'x-cio-client-platform': 'web',
+        'x-cio-site-id': '2598be4aa410159198b2',
+        'x-gist-user-anonymous': 'false'
       },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query: query.trim(), variables: {}, operationName: null }),
     });
 
     if (!response.ok) {
@@ -50,7 +56,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `Monarch API error: ${response.status}` }, { status: response.status });
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     
     if (data.errors) {
         return NextResponse.json({ error: data.errors[0].message }, { status: 400 });
@@ -58,7 +64,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(data.data);
   } catch (error: any) {
-    console.error("Monarch Proxy Error:", error);
+    console.error("Monarch Proxy Error using Custom Fetch:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }

@@ -1,11 +1,20 @@
+import fs from 'fs';
 import type {NextConfig} from 'next';
 
 // FIX: Aggressively remove invalid credential environment variables injected by some environments
-if (process.env.GOOGLE_APPLICATION_CREDENTIALS && 
-    (process.env.GOOGLE_APPLICATION_CREDENTIALS.includes("path/to/") || 
-     process.env.GOOGLE_APPLICATION_CREDENTIALS.includes("service-account-key.json"))) {
-    console.log(`[NextConfig] Removing invalid GOOGLE_APPLICATION_CREDENTIALS: ${process.env.GOOGLE_APPLICATION_CREDENTIALS}`);
-    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (credPath) {
+    let shouldDelete = false;
+    if (credPath.includes("path/to/")) {
+        shouldDelete = true;
+    } else if (!fs.existsSync(credPath)) {
+        shouldDelete = true;
+    }
+    
+    if (shouldDelete) {
+        // console.log(`[NextConfig] Removing invalid GOOGLE_APPLICATION_CREDENTIALS: ${credPath}`);
+        delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    }
 }
 
 const nextConfig: NextConfig = {

@@ -59,10 +59,9 @@ import { Slider } from "@/components/ui/slider";
 // New Components
 import { WeatherWidget } from "./weather-widget";
 import { CommodityTicker } from "./commodity-ticker";
-import { ShiftNotes } from "./shift-notes";
-import { CommunityEvents } from "./community-events";
 import { StatusIndicator } from "./status-indicator";
 import { MonarchWidget } from "./monarch-widget";
+import { HeadlineWidget } from "./headline-widget";
 
 // Types
 type DashboardStats = {
@@ -436,11 +435,10 @@ export default function Dashboard() {
               <WeatherWidget />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <MonarchWidget />
               <CommodityTicker />
-              <CommunityEvents />
-              <ShiftNotes />
+              <HeadlineWidget />
           </div>
       </div>
 
