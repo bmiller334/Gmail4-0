@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { NextResponse } from "next/server";
 import { saveRefreshToken } from "@/lib/db-service";
+import { getGmailClient } from "@/lib/gmail-service";
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,24 @@ export async function GET(request: Request) {
     if (tokens.refresh_token) {
       console.log("Successfully retrieved new refresh token. Saving to Firestore...");
       await saveRefreshToken(tokens.refresh_token);
+
+      // Successfully authenticated, now attempt to re-establish the watch
+      try {
+        const gmail = await getGmailClient();
+        const topicName = process.env.GMAIL_TOPIC_NAME || 'projects/gmail4-0/topics/gmail-incoming';
+        await gmail.users.watch({
+          userId: 'me',
+          requestBody: {
+            labelIds: ['INBOX'],
+            topicName,
+            labelFilterAction: 'include',
+          },
+        });
+        console.log("Automatically renewed Gmail watch after re-authentication.");
+      } catch (watchErr: any) {
+         console.warn("Failed to automatically renew watch. You might need to renew manually.", watchErr);
+      }
+
       return NextResponse.redirect(`${protocol}://${host}/logs?auth=success`);
     } else {
       console.warn("No refresh token returned. User might have already granted access.");
