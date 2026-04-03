@@ -194,8 +194,8 @@ export async function getInboxCount() {
             id: 'INBOX'
         });
         
-        // return messagesTotal for total messages, or threadsTotal for threads
-        return res.data.messagesTotal || 0;
+        // return messagesUnread for total unread messages
+        return res.data.messagesUnread || 0;
     } catch (error) {
         console.error("Failed to fetch inbox count:", error);
         return 0;
