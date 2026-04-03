@@ -6,6 +6,18 @@
 **For Future AI Agents & Developers:**
 This document serves as the primary context source for the current state of the project. It outlines architectural decisions, specific workarounds implemented to bypass Google Cloud limitations for personal accounts, and the current feature set.
 
+## Quick Build & Deploy
+
+Because this project is connected to Google Cloud Build / App Hosting via GitHub, the easiest and standard way to deploy updates is simply to commit and push your changes to the `main` branch. 
+
+Run the following commands:
+```bash
+git add .
+git commit -m "Update"
+git push origin main
+```
+*(This automatically triggers the cloud platform to build and deploy your live site.)*
+
 ## 1. Project Overview
 This is a **Next.js** application deployed on **Google Cloud Run** designed to be a central command center for a hardware store owner in Syracuse, KS.
 *   **Goal**: Maintain "Inbox Zero" by moving emails to static categories (Labels) and provide critical operational data (Weather, Commodity Prices, Staff Notes).
