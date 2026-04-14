@@ -61,7 +61,7 @@ import { WeatherWidget } from "./weather-widget";
 import { CommodityTicker } from "./commodity-ticker";
 import { StatusIndicator } from "./status-indicator";
 import { MonarchWidget } from "./monarch-widget";
-import { HeadlineWidget } from "./headline-widget";
+import { NewsTicker } from "./news-ticker";
 
 // Types
 type DashboardStats = {
@@ -385,6 +385,7 @@ export default function Dashboard() {
       )}
 
       <div className="flex flex-col gap-4">
+          <NewsTicker />
           <div className="flex justify-between items-end mb-2">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
@@ -460,10 +461,9 @@ export default function Dashboard() {
               <WeatherWidget />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
               <MonarchWidget />
               <CommodityTicker />
-              <HeadlineWidget />
           </div>
       </div>
 

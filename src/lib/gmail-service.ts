@@ -189,13 +189,20 @@ export async function moveEmailToCategory(
 export async function getInboxCount() {
     try {
         const gmail = await getGmailClient();
-        const res = await gmail.users.labels.get({
+        
+        // Fetch only unread messages in the Primary category of the Inbox
+        // This avoids counting thousands of unread Promotions/Social emails
+        const res = await gmail.users.messages.list({
             userId: 'me',
-            id: 'INBOX'
+            q: 'label:inbox category:primary is:unread',
+            maxResults: 500
         });
         
-        // return messagesUnread for total unread messages
-        return res.data.messagesUnread || 0;
+        if (res.data.messages && !res.data.nextPageToken) {
+            return res.data.messages.length;
+        }
+        
+        return res.data.resultSizeEstimate || 0;
     } catch (error) {
         console.error("Failed to fetch inbox count:", error);
         return 0;

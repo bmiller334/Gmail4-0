@@ -20,6 +20,8 @@ export async function GET(req: Request) {
         url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
     } else if (category === 'US') {
         url = 'https://news.google.com/rss/headlines/section/topic/NATION?hl=en-US&gl=US&ceid=US:en';
+    } else if (category === 'Market') {
+        url = 'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en';
     }
 
     try {
