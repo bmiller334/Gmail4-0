@@ -21,13 +21,18 @@ export async function GET(request: Request) {
   const clientId = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
   
-  // Construct the redirect URI exactly as it was sent in the initial request
-  const host = request.headers.get("host");
-  const protocol = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
-  const dynamicRedirectUri = `${protocol}://${host}/api/auth/google/callback`;
+  // Bulletproof dynamic redirect URI resolution using forward headers
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const fallbackHost = request.headers.get("host");
+  const host = forwardedHost || fallbackHost || "localhost:3000";
+  
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const protocol = forwardedProto || (host.includes("localhost") ? "http" : "https");
+  
+  let resolvedRedirectUri = `${protocol}://${host}/api/auth/google/callback`;
   
   // Use explicit environment variable for Google's OAuth validation to prevent mismatch
-  const redirectUri = process.env.GMAIL_REDIRECT_URI || dynamicRedirectUri;
+  const redirectUri = process.env.GMAIL_REDIRECT_URI || resolvedRedirectUri;
 
   const oauth2Client = new google.auth.OAuth2(
     clientId,
