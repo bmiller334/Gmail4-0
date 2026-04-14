@@ -7,9 +7,12 @@ export async function GET(request: Request) {
   const clientId = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
   
-  // Use explicit environment variable for redirect URI (required for stable OAuth)
-  // Fall back to localhost if not specified
-  const redirectUri = process.env.GMAIL_REDIRECT_URI || "http://localhost:3000/api/auth/google/callback";
+  // Dynamically resolve redirect URI to avoid mismatch errors in production
+  const host = request.headers.get("host");
+  const protocol = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+  const dynamicRedirectUri = `${protocol}://${host}/api/auth/google/callback`;
+  
+  const redirectUri = process.env.GMAIL_REDIRECT_URI || dynamicRedirectUri;
 
   console.log("---------------------------------------------------");
   console.log("Generated Redirect URI:", redirectUri);
