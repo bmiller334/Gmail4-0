@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getStats, getRecentLogs, getSenderRules } from '@/lib/db-service';
+import { getStats, getRecentLogs, getSenderRules, getWatchStatus } from '@/lib/db-service';
 import { getInboxCount } from '@/lib/gmail-service';
 
 export const dynamic = 'force-dynamic';
@@ -12,13 +12,14 @@ export async function GET(req: Request) {
     const category = searchParams.get('category') || undefined;
     
     try {
-        const [todayStats, weeklyStats, logs, insights, rules, inboxCount] = await Promise.all([
+        const [todayStats, weeklyStats, logs, insights, rules, inboxCount, watchStatus] = await Promise.all([
             getStats(1), // Today
             getStats(7), // Last 7 days
             getRecentLogs(50, { search, category }),
             Promise.resolve([]), // Placeholder for AI insights logic
             getSenderRules(),
-            getInboxCount()
+            getInboxCount(),
+            getWatchStatus()
         ]);
 
         return NextResponse.json({ 
@@ -27,7 +28,8 @@ export async function GET(req: Request) {
             logs, 
             insights,
             rules,
-            inboxCount // Added inbox count to response
+            inboxCount,
+            watchStatus
         });
     } catch (error) {
         console.error("Error in stats API:", error);

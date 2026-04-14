@@ -1,19 +1,12 @@
-import { NextResponse } from 'next/server';
 import { getGmailClient } from '@/lib/gmail-service';
+import { saveWatchStatus } from '@/lib/db-service';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; 
 
 export async function GET(req: Request) {
     try {
-        const topicName = process.env.GMAIL_TOPIC_NAME;
-
-        if (!topicName) {
-            return NextResponse.json(
-                { error: "GMAIL_TOPIC_NAME is not set in environment variables" },
-                { status: 500 }
-            );
-        }
+        const topicName = process.env.GMAIL_TOPIC_NAME || 'projects/gmail4-0/topics/gmail-incoming';
 
         const authHeader = req.headers.get('authorization');
         // Simple security layer: requiring a cron secret to prevent unauthorized renewals.
@@ -38,6 +31,12 @@ export async function GET(req: Request) {
         });
 
         console.log("Successfully renewed Gmail watch:", res.data);
+
+        // Save status to Firestore for dashboard visibility
+        await saveWatchStatus(
+            res.data.historyId || "unknown",
+            new Date(Number(res.data.expiration)).toISOString()
+        );
 
         return NextResponse.json({
             status: "success",

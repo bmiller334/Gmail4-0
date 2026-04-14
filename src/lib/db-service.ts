@@ -25,6 +25,7 @@ export const COLLECTION_NOTES = 'store_notes';
 export const COLLECTION_SETTINGS = 'settings'; 
 export const DOC_CATEGORIES = 'email_categories'; 
 export const DOC_AUTH = 'google_auth'; // New document for Auth
+export const DOC_WATCH = 'watch_status'; // New document for Watch Status
 
 // ... Types ...
 export type EmailLog = {
@@ -328,6 +329,35 @@ export async function saveRefreshToken(refreshToken: string) {
         console.log("Successfully saved refresh token to Firestore.");
     } catch (error) {
         console.error("Error saving refresh token:", error);
+        throw error;
+    }
+}
+
+// --- Watch Management ---
+
+export async function getWatchStatus() {
+    try {
+        const doc = await db.collection(COLLECTION_SETTINGS).doc(DOC_WATCH).get();
+        if (doc.exists) {
+            return doc.data();
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching watch status:", error);
+        return null;
+    }
+}
+
+export async function saveWatchStatus(historyId: string, expiration: string) {
+    try {
+        await db.collection(COLLECTION_SETTINGS).doc(DOC_WATCH).set({
+            historyId,
+            expiration,
+            updatedAt: new Date()
+        });
+        console.log("Successfully saved watch status to Firestore.");
+    } catch (error) {
+        console.error("Error saving watch status:", error);
         throw error;
     }
 }

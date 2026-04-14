@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGmailClient } from '@/lib/gmail-service';
+import { saveWatchStatus } from '@/lib/db-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,12 @@ export async function GET() {
         labelFilterAction: 'include',
       },
     });
+    
+    // Save status to Firestore for dashboard visibility
+    await saveWatchStatus(
+      res.data.historyId || "unknown",
+      new Date(Number(res.data.expiration)).toISOString()
+    );
 
     return NextResponse.json({
       success: true,

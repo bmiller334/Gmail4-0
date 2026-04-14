@@ -125,6 +125,7 @@ export default function Dashboard() {
   const [insights, setInsights] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([]);
   const [inboxCount, setInboxCount] = useState<number>(0);
+  const [watchStatus, setWatchStatus] = useState<any>(null);
   
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
@@ -179,6 +180,7 @@ export default function Dashboard() {
         setRules(data.rules || []);
         setInboxCount(data.inboxCount || 0);
         setSuggestions(suggestionsData.suggestions || []);
+        setWatchStatus(data.watchStatus || null);
 
     } catch (err) {
         console.error("Failed to fetch dashboard data", err);
@@ -359,6 +361,29 @@ export default function Dashboard() {
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      {watchStatus && new Date(watchStatus.expiration) < new Date() && (
+          <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-lg flex items-center justify-between animate-pulse shadow-sm">
+              <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5" />
+                  <div>
+                      <p className="font-bold text-sm">Gmail Catch System Offline</p>
+                      <p className="text-xs opacity-80">The Gmail watch has expired. New emails will not be sorted automatically.</p>
+                  </div>
+              </div>
+              <Button size="sm" variant="destructive" className="font-bold" onClick={async () => {
+                  try {
+                      const res = await fetch('/api/watch');
+                      if (res.ok) {
+                        toast({ title: "Watch Renewed", description: "Real-time email catching is back online." });
+                        fetchData();
+                      }
+                  } catch (e) {}
+              }}>
+                  <Zap className="mr-2 h-4 w-4" /> Fix Now
+              </Button>
+          </div>
+      )}
+
       <div className="flex flex-col gap-4">
           <div className="flex justify-between items-end mb-2">
                 <div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { AlertCircle, Terminal, XCircle, AlertTriangle } from 'lucide-react';
+import { AlertCircle, Terminal, XCircle, AlertTriangle, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,6 +16,8 @@ type LogStats = {
     warningCount: number;
     lastError?: string;
     lastErrorTime?: string;
+    watchExpiration?: string;
+    isWatchActive?: boolean;
 };
 
 export function StatusIndicator() {
@@ -27,17 +29,33 @@ export function StatusIndicator() {
         const res = await fetch('/api/system-logs?limit=50');
         const data = await res.json();
         
-        if (data.logs) {
-            const errors = data.logs.filter((l: any) => l.severity === 'ERROR' || l.severity === 'CRITICAL');
-            const warnings = data.logs.filter((l: any) => l.severity === 'WARNING');
-            
-            setStats({
-                errorCount: errors.length,
-                warningCount: warnings.length,
-                lastError: errors[0]?.message,
-                lastErrorTime: errors[0]?.timestamp
-            });
+        const logs = data.logs || [];
+        const errors = logs.filter((l: any) => l.severity === 'ERROR' || l.severity === 'CRITICAL');
+        const warnings = logs.filter((l: any) => l.severity === 'WARNING');
+
+        let isWatchActive = false;
+        let watchExpiration = "";
+
+        try {
+            const watchRes = await fetch('/api/watch/status');
+            const watchData = await watchRes.json();
+            if (watchData.success && watchData.status?.expiration) {
+                watchExpiration = watchData.status.expiration;
+                const expirationDate = new Date(watchExpiration);
+                isWatchActive = expirationDate > new Date();
+            }
+        } catch (e) {
+            console.warn("Failed to fetch watch status", e);
         }
+        
+        setStats({
+            errorCount: errors.length,
+            warningCount: warnings.length,
+            lastError: errors[0]?.message,
+            lastErrorTime: errors[0]?.timestamp,
+            watchExpiration,
+            isWatchActive
+        });
     } catch (error) {
         console.error("Failed to fetch log stats", error);
     } finally {
@@ -54,71 +72,88 @@ export function StatusIndicator() {
 
   if (loading) return null;
 
-  // State 1: All Good (Green)
-  if (stats.errorCount === 0 && stats.warningCount === 0) {
-      return (
-          <Link href="/logs">
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 hover:bg-green-500/20 text-green-600 border border-green-500/20 transition-colors cursor-pointer text-sm font-medium">
-                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            <span>System Healthy</span>
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>No recent errors in the last 50 logs.</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-          </Link>
-      );
-  }
+  const WatchStatusInfo = () => (
+    <div className="pt-2 border-t border-slate-800">
+        <div className="font-semibold mb-1 flex items-center gap-2 text-xs">
+            <Mail className={`w-3 h-3 ${stats.isWatchActive ? 'text-green-500' : 'text-red-500'}`} />
+            Gmail Watch Status:
+        </div>
+        <div className="flex items-center justify-between gap-2">
+            <span className={`text-[10px] ${stats.isWatchActive ? 'text-green-400' : 'text-red-400 font-bold'}`}>
+                {stats.isWatchActive ? 'Active' : 'Expired'}
+                {stats.watchExpiration && ` (Exp: ${new Date(stats.watchExpiration).toLocaleDateString()})`}
+            </span>
+            <button 
+                onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                        const res = await fetch('/api/watch');
+                        if (res.ok) fetchStats();
+                    } catch (err) {}
+                }}
+                className="text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-0.5 rounded text-slate-300 border border-slate-700 transition-colors"
+            >
+                {stats.isWatchActive ? 'Refresh' : 'Fix'}
+            </button>
+        </div>
+    </div>
+  );
 
-  // State 2: Warnings Only (Yellow)
-  if (stats.errorCount === 0 && stats.warningCount > 0) {
-      return (
-          <Link href="/logs">
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-600 border border-yellow-500/20 transition-colors cursor-pointer text-sm font-medium">
-                            <AlertTriangle className="w-4 h-4" />
-                            <span>{stats.warningCount} Warnings</span>
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Non-critical issues detected recently.</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-          </Link>
-      );
-  }
+  const getStatusColor = () => {
+    if (stats.errorCount > 0 || !stats.isWatchActive) return 'red';
+    if (stats.warningCount > 0) return 'yellow';
+    return 'green';
+  };
 
-  // State 3: Errors Detected (Red)
+  const statusColor = getStatusColor();
+
   return (
-      <Link href="/logs">
+    <Link href="/logs">
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/20 transition-colors cursor-pointer text-sm font-medium animate-in fade-in duration-500">
-                        <XCircle className="w-4 h-4" />
-                        <span>{stats.errorCount} Errors</span>
-                        {stats.lastErrorTime && (
-                             <span className="text-xs opacity-70 ml-1 border-l border-red-500/20 pl-2">
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-${statusColor}-500/10 hover:bg-${statusColor}-500/20 text-${statusColor}-600 border border-${statusColor}-500/20 transition-colors cursor-pointer text-sm font-medium animate-in fade-in duration-500`}>
+                        {statusColor === 'green' && <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
+                        {statusColor === 'yellow' && <AlertTriangle className="w-4 h-4" />}
+                        {statusColor === 'red' && <XCircle className="w-4 h-4" />}
+                        
+                        <span>
+                            {statusColor === 'green' && "System Healthy"}
+                            {statusColor === 'yellow' && `${stats.warningCount} Warnings`}
+                            {statusColor === 'red' && (stats.errorCount > 0 ? `${stats.errorCount} Errors` : "Watch Expired")}
+                        </span>
+
+                        {stats.lastErrorTime && stats.errorCount > 0 && (
+                            <span className="text-xs opacity-70 ml-1 border-l border-red-500/20 pl-2">
                                 {new Date(stats.lastErrorTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                             </span>
+                            </span>
                         )}
                     </div>
                 </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                    <div className="font-semibold mb-1">Recent Error:</div>
-                    <p className="text-xs break-words">{stats.lastError || "Check logs for details."}</p>
-                    <div className="mt-2 text-xs text-muted-foreground">Click to view full logs.</div>
+                <TooltipContent className="max-w-xs space-y-2 p-3">
+                    {stats.errorCount > 0 ? (
+                        <div>
+                            <div className="font-semibold mb-1 flex items-center gap-2">
+                                <AlertCircle className="w-3 h-3 text-red-500" />
+                                Recent Error:
+                            </div>
+                            <p className="text-[10px] break-words text-slate-300">{stats.lastError || "Check logs for details."}</p>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-slate-300">
+                            {stats.warningCount > 0 ? `${stats.warningCount} warnings detected.` : "No recent errors detected."}
+                        </p>
+                    )}
+
+                    <WatchStatusInfo />
+
+                    <div className="pt-1 text-[10px] text-muted-foreground italic border-t border-slate-800/50 mt-1 uppercase tracking-wider font-bold">
+                        Click to view full logs
+                    </div>
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
-      </Link>
+    </Link>
   );
 }
