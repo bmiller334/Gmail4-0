@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { execSync } from 'child_process';
 import type {NextConfig} from 'next';
 
 // FIX: Aggressively remove invalid credential environment variables injected by some environments
@@ -17,7 +18,24 @@ if (credPath) {
     }
 }
 
+let buildTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour12: true });
+let commitHash = '';
+
+try {
+  commitHash = execSync('git rev-parse --short HEAD', { stdio: 'ignore' }).toString().trim();
+  const commitTimestamp = execSync('git log -1 --format=%cd', { stdio: 'ignore' }).toString().trim();
+  if (commitTimestamp) {
+      buildTime = new Date(commitTimestamp).toLocaleString('en-US', { timeZone: 'America/New_York', hour12: true });
+  }
+} catch (e) {
+  // Fallback to build time
+}
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_TIME: buildTime,
+    NEXT_PUBLIC_COMMIT_HASH: commitHash,
+  },
   /* config options here */
   output: "standalone",
   typescript: {

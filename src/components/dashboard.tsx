@@ -831,6 +831,11 @@ export default function Dashboard() {
              </Card>
         </TabsContent>
       </Tabs>
+
+      <div className="text-center text-xs text-muted-foreground opacity-60 mt-8 pb-4">
+          Last pushed update: {process.env.NEXT_PUBLIC_BUILD_TIME || "Unknown"}
+          {process.env.NEXT_PUBLIC_COMMIT_HASH ? ` (${process.env.NEXT_PUBLIC_COMMIT_HASH})` : ""}
+      </div>
     </div>
   );
 }
