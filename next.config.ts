@@ -19,16 +19,18 @@ if (credPath) {
 }
 
 let buildTime = new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour12: true });
-let commitHash = '';
+let commitHash = process.env.NEXT_PUBLIC_COMMIT_HASH || process.env.COMMIT_SHA || '';
 
 try {
-  commitHash = execSync('git rev-parse --short HEAD', { stdio: 'ignore' }).toString().trim();
+  if (!commitHash) {
+      commitHash = execSync('git rev-parse --short HEAD', { stdio: 'ignore' }).toString().trim();
+  }
   const commitTimestamp = execSync('git log -1 --format=%cd', { stdio: 'ignore' }).toString().trim();
   if (commitTimestamp) {
       buildTime = new Date(commitTimestamp).toLocaleString('en-US', { timeZone: 'America/New_York', hour12: true });
   }
 } catch (e) {
-  // Fallback to build time
+  // Gracefully fallback to actual build time (new Date() from above) if git context is missing (like in Cloud Build)
 }
 
 const nextConfig: NextConfig = {

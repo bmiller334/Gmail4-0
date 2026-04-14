@@ -21,6 +21,9 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
+ARG COMMIT_SHA
+ENV NEXT_PUBLIC_COMMIT_HASH=${COMMIT_SHA}
+
 RUN npm run build
 
 # Production image, copy all the files and run next

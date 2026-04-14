@@ -1,7 +1,7 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/nextn-email-sorter', '.']
+    args: ['build', '--build-arg', 'COMMIT_SHA=$SHORT_SHA', '-t', 'gcr.io/$PROJECT_ID/nextn-email-sorter', '.']
 
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
