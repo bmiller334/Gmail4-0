@@ -16,9 +16,10 @@ try {
 } catch (err) {
     console.error("Failed to initialize Google Cloud Logging client:", err);
     // @ts-ignore
+    // @ts-ignore
     logging = {
-        getEntries: async () => [[], null, null]
-    };
+        getEntries: async () => [[], null, null] as any
+    } as any;
 }
 
 export type LogEntry = {

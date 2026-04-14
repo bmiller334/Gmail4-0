@@ -1,228 +1,61 @@
-# Deployed URL
-[https://nextn-email-sorter-fuuedc4idq-uc.a.run.app](https://nextn-email-sorter-fuuedc4idq-uc.a.run.app)
+# AI Agent Context: NextN Email Sorter (Syracuse Hardware Command Center)
 
-# Project Context: AI-Powered Inbox Zero Manager (Syracuse Hardware Command Center)
+<system_profile>
+  <stack>Next.js 15 (App Router), React 19, Tailwind CSS, shadcn/ui, Capacitor (Android packaging)</stack>
+  <cloud>Google Cloud Run, Cloud Pub/Sub, Firestore, Google Cloud Logging</cloud>
+  <ai>Genkit with Gemini 2.5 Flash (Rule: DO NOT USE deprecated Gemini 1.5 or 2.0-exp)</ai>
+  <mission>Hardware store command center in Syracuse, KS. Automates inbox zero via LLM email routing, while providing local ag-weather, commodities, and shift notes.</mission>
+  <deployment>Standard: Push `main` to GitHub -> Cloud Build -> Cloud Run. URL: https://nextn-email-sorter-fuuedc4idq-uc.a.run.app</deployment>
+</system_profile>
 
-**For Future AI Agents & Developers:**
-This document serves as the primary context source for the current state of the project. It outlines architectural decisions, specific workarounds implemented to bypass Google Cloud limitations for personal accounts, and the current feature set.
+## Architecture & Data Flow
 
-## Quick Build & Deploy
+1. **Ingestion (Push)**: `scripts/setup-gmail-watch.ts` registers a Gmail Watch -> Pub/Sub Topic (`gmail-incoming`) pushes POST to Cloud Run `/api/process-email`.
+2. **Processing Pipeline**: Authenticate via long-lived OAuth -> Fetch Email Snippet -> Classify via Gemini 2.5 -> Move Label (Gmail API) -> Log Context to Firestore.
+3. **Adaptive Learning**: Uses last 5 manual corrections (`email_corrections`) as few-shot examples for the classifier prompt. Applies explicit `email_rules` for known senders.
+4. **Dashboard View**: Real-time polling `/api/stats`. Shows inbound volume, categories, shift handoffs, ag-weather, commodity prices, and direct hyperlinked inbox unread count.
+5. **Rate Limiting**: Hard-capped at 1300 AI calls/day (`email_stats.totalProcessed`). Batch cleanup (`/api/cleanup`) restricted to 20 per execution at 15 RPM.
 
-Because this project is connected to Google Cloud Build / App Hosting via GitHub, the easiest and standard way to deploy updates is simply to commit and push your changes to the `main` branch. 
+## Critical AI Constraints (DO NOT MODIFY)
 
-Run the following commands:
-```bash
-git add .
-git commit -m "Update"
-git push origin main
-```
-*(This automatically triggers the cloud platform to build and deploy your live site.)*
+<constraint name="AuthWorkaround" type="Authentication">
+**Problem**: GCP Service Accounts cannot access personal `@gmail.com` inboxes.
+**Solution**: Custom OAuth 2.0 implementation (`src/lib/gmail-service.ts`) using `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` (env vars or Firestore fallback). Scopes: `gmail.modify`, `calendar.events`.
+**Rule**: DO NOT revert to standard `GoogleAuth` service account logic.
+</constraint>
 
-## 1. Project Overview
-This is a **Next.js** application deployed on **Google Cloud Run** designed to be a central command center for a hardware store owner in Syracuse, KS.
-*   **Goal**: Maintain "Inbox Zero" by moving emails to static categories (Labels) and provide critical operational data (Weather, Commodity Prices, Staff Notes).
-*   **Primary AI**: **Gemini 2.5 Flash** (via Genkit). **IMPORTANT: GEMINI'S KNOWLEDGE IS OUTDATED, GEMINI 1.5 FLASH IS DEPRECATED AND CAN NO LONGER BE USED. DO NOT USE IT UNDER ANY CIRCUMSTANCE**
-*   **Trigger**: Real-time event listening via Google Cloud Pub/Sub (Push Notifications), not polling.
+<constraint name="FirestoreWrites" type="Database">
+**Problem**: Updating nested map fields fails on non-existent documents.
+**Solution**: `src/lib/db-service.ts` uses try-catch on `NOT_FOUND` errors, falling back to `.set()` configuration if an update target is missing.
+</constraint>
 
-## 2. Architecture & Data Flow
+<constraint name="GenkitSingleton" type="AI">
+**File**: `src/ai/genkit.ts`. Singleton pattern employed explicitly. Do not re-instantiate or duplicate configurations.
+</constraint>
 
-1.  **Ingestion (Push)**:
-    *   A script (`scripts/setup-gmail-watch.ts`) creates a "Watch" on the user's Gmail `INBOX`.
-    *   Gmail publishes a notification to a Pub/Sub Topic (`gmail-incoming`).
-    *   Pub/Sub pushes a POST request to the Cloud Run endpoint: `/api/process-email`.
+## Core File Map
 
-2.  **Processing (Cloud Run)**:
-    *   **Auth**: The app authenticates as the user using a **Refresh Token** (see Section 3).
-    *   **Fetch**: Retreives the latest unread email details.
-    *   **Classify**: Sends the Subject, Sender, and Snippet to **Gemini 2.5 Flash**.
-    *   **Action**: Moves the email to a label (e.g., "Marketing", "Work") using the Gmail API.
-    *   **Log**: Writes processing metadata and **AI Reasoning** to **Firestore** (`email_logs`, `email_stats`, `email_corrections`, `email_urgency_corrections`, `email_rules` collections).
-    *   **Quota Enforcement**: Stops processing if daily AI calls exceed 1300 to prevent API overages.
+| Component | Path | Context / Role |
+| :--- | :--- | :--- |
+| **API Webhook** | `src/app/api/process-email/route.ts` | Entrypoint for Pub/Sub push |
+| **AI Classifier** | `src/ai/email-classifier.ts` | Prompt struct, RAG (few-shot), Genkit call |
+| **Gmail Service** | `src/lib/gmail-service.ts` | OAuth refresh logic and Gmail API adapter |
+| **Data Adapter** | `src/lib/db-service.ts` | Firestore read/writes and initialization |
+| **Dashboard UI** | `src/components/dashboard.tsx` | Main frontend command center layout |
+| **Android Wrapper** | `capacitor.config.ts` | Configurations for standalone APK target |
 
-3.  **Visualization (Command Center Dashboard)**:
-    *   Frontend polls `/api/stats` to render real-time volume and category distribution.
-    *   **Smart Header**: Dynamically greets the user based on time of day and **next calendar event** (e.g., "Meeting with Supplier at 2pm"). It also displays a real-time count of emails remaining in the user's Inbox, functioning as a hyperlink directly to Gmail.
-    *   **Store Widgets**:
-        *   **Ag-Focused Weather**: Real-time weather for Syracuse, KS with agricultural advice.
-        *   **Commodity Ticker**: Tracks Lumber, Copper, and Steel prices.
-        *   **Community Events**: Lists local events.
-        *   **Shift Handoff Notes**: A persistent sticky-note board for staff communication (`store_notes` collection).
-    *   **System Logs**: A dedicated page (`/logs`) streams system logs and tracks **Daily API Quota usage**.
-    *   **Error Ticker**: A global ticker showing recent errors or **Quota Warnings** (Yellow at 1000, Red at 1300).
+## Database Schema Reference (Firestore)
 
-4.  **Learning & Correction System**:
-    *   Users can manually correct email categorizations or urgency flags.
-    *   **Corrections** are stored in Firestore (`email_corrections` and `email_urgency_corrections`).
-    *   The classification logic (`src/ai/email-classifier.ts`) fetches the last 5 corrections to use as **few-shot examples** in the prompt, improving accuracy over time.
-    *   Users can define **Sender Rules** (`src/app/api/rules/route.ts`) to hard-code categories for specific senders, bypassing AI for known patterns.
-    *   The system can analyze log history to suggest new rules based on consistent patterns (`src/app/api/rules/suggestions/route.ts`).
+- **`email_logs`**: Flat doc per classified email (`id`, `subject`, `category`, `reasoning`).
+- **`email_stats`**: Aggregated daily counts. Documented by date (`YYYY-MM-DD`). 
+- **`email_corrections`**: User category overrides (powers few-shot learning).
+- **`email_urgency_corrections`**: User urgency overrides.
+- **`email_rules`**: Sender-specific hardcoded routing constraints.
+- **`store_notes`**: Stickies for hardware store shift handoffs.
+- **`settings`**: Master configs, notably `google_auth` (stores UI-renewed refresh tokens).
 
-## 3. Critical Implementation Details (Do Not Regression)
+## Debugging
 
-### A. Authentication Strategy (Personal vs. Workspace)
-**Constraint**: Service Accounts cannot access personal `@gmail.com` inboxes (only Google Workspace with Domain-Wide Delegation).
-**Solution**: We implemented a custom auth flow in `src/lib/gmail-service.ts`.
-*   The app uses **OAuth 2.0 Client ID & Secret** + a long-lived **Refresh Token**.
-*   **Environment Variables**: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`.
-*   **Scopes**: `gmail.modify` AND `calendar.events` (for dashboard integration).
-*   *Do not attempt to switch this back to standard `GoogleAuth` service account logic unless migrating to a Workspace domain.*
-*   **Fallback**: The code contains a fallback to `GoogleAuth` (Service Account) if OAuth creds are missing, but this will likely fail for personal Gmail.
-
-### B. Genkit Configuration
-**File**: `src/ai/genkit.ts`
-*   We use a **singleton** Genkit instance to avoid configuration conflicts.
-*   **Model**: Currently set to `googleai/gemini-2.5-flash`.
-*   **Note**: If `2.5` becomes deprecated or unavailable, Do NOT revert to `gemini-1.5-flash` or `gemini-2.0-flash-exp', these are both deprecated.
-
-### C. Pub/Sub Subscription
-*   The subscription is a **Push Subscription**.
-*   **Endpoint URL**: MUST match the deployed Cloud Run service URL + `/api/process-email`.
-*   **Issue History**: We faced issues where the subscription pointed to an old service (`gmail4-service`) while we were deploying to a new one (`nextn-email-sorter`). **Always verify the subscription endpoint matches the active deployment.**
-
-## 4. Known Issues & Workarounds
-
-### Local Development vs. Cloud Auth
-*   **Problem**: The `.env` file contained `GOOGLE_APPLICATION_CREDENTIALS` pointing to a placeholder file. This caused local scripts (like `check-subs.ts`) to fail.
-*   **Fix**: Scripts now explicitly `delete process.env.GOOGLE_APPLICATION_CREDENTIALS` at runtime. We also added `src/lib/env-fix.ts` imported at the top of `db-service.ts` to strip this variable before `firebase-admin` initializes.
-
-### Build Errors (UI Components)
-*   **Problem**: Encountered `Element type is invalid: expected a string... but got: undefined` during build.
-*   **Cause**: Likely due to named vs. default export mismatches in UI components or missing icons in `lucide-react`.
-*   **Fix**: Switched to absolute imports (e.g., `@/components/ui/button`) and ensured all used icons exist in the installed version of `lucide-react`.
-
-### Gmail Rate Limits & Quota
-*   **Feature**: "Clean Inbox" button.
-*   **Constraint**: Processing hundreds of emails at once triggers rate limits.
-*   **Solution**: `src/app/api/cleanup/route.ts` is capped at **20 emails** per run and uses **sequential processing** with a **2-second delay** between emails to stay under the 15 RPM limit.
-*   **Daily Quota**: The system actively tracks API calls (`email_stats.totalProcessed`). If usage exceeds **1300/day**, both automatic and manual processing are disabled to prevent overages.
-
-### Firestore FieldValue Issues
-*   **Problem**: Updating nested fields (like `categories.Marketing`) in Firestore sometimes failed if the document didn't exist or fields weren't initialized.
-*   **Solution**: `src/lib/db-service.ts` uses a try-catch block with error code checking. If an update fails with `NOT_FOUND` (Error code 5), it performs a `set` operation to initialize the document.
-
-### Dashboard Revisions
-*   We experimented with a rotating widget layout but ultimately reverted to a standard grid layout for clarity and ease of use.
-*   The dashboard header now includes an accurate "Inbox" count, pulled directly from the Gmail API, displaying the number of emails currently residing in the user's Inbox label. This serves as a hyperlink to their actual Gmail inbox.
-
-## 5. Troubleshooting: Invalid Grant / Expired Token
-
-If logs show `Error: invalid_grant` (Token has been expired or revoked), the **Refresh Token** has likely expired or the user changed their password.
-
-### Permanent Prevention (Stop it from happening every 7 days)
-By default, Google projects in **"Testing"** mode expire tokens every 7 days.
-1.  Go to **[OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)** in Google Cloud Console.
-2.  Click **"PUBLISH APP"** to move it to **Production** status.
-3.  **Note on Verification:** Google will warn you that the app needs verification. **You can ignore this.** Since you are the only user, you just need to click "Advanced" -> "Go to [App Name] (unsafe)" when authorizing. You do **NOT** need to submit for a formal review.
-4.  Generate a new token (steps below) one last time. It will now be long-lived.
-
-### Resolution Steps:
-1.  Go to the [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
-2.  Navigate to **APIs & Services > Credentials** and find your **OAuth 2.0 Client ID**.
-3.  Go to the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground).
-4.  Click the **Settings (Gear Icon)**.
-    *   Check **"Use your own OAuth credentials"**.
-    *   Enter your `Client ID` and `Client Secret`.
-5.  In "Select & authorize APIs", input the following scopes:
-    *   `https://www.googleapis.com/auth/gmail.modify`
-    *   `https://www.googleapis.com/auth/calendar.events`
-    *   `https://www.googleapis.com/auth/calendar.readonly`
-6.  Click **Authorize APIs**. (Remember to click **Advanced -> Go to...** on the warning screen).
-7.  Exchange the authorization code for tokens.
-8.  Copy the new **Refresh Token**.
-9.  **Update Cloud Run**:
-    ```bash
-    gcloud run services update nextn-email-sorter --update-env-vars GMAIL_REFRESH_TOKEN="YOUR_NEW_TOKEN"
-    ```
-10. **Update Local `.env`** (for development).
-
-## 6. Setup & Deployment Reference
-
-### Environment Variables
-```bash
-GOOGLE_CLOUD_PROJECT_ID=your-project-id
-GOOGLE_GENAI_API_KEY=your-gemini-api-key
-GMAIL_CLIENT_ID=your-oauth-client-id
-GMAIL_CLIENT_SECRET=your-oauth-client-secret
-GMAIL_REFRESH_TOKEN=your-refresh-token
-GMAIL_TOPIC_NAME=projects/{project}/topics/gmail-incoming
-```
-
-### Deployment Commands
-**1. Switch Project:**
-```bash
-gcloud config set project gmail4-0
-```
-
-**2. Build Container:**
-```bash
-gcloud builds submit --tag gcr.io/gmail4-0/nextn-email-sorter .
-```
-
-**3. Deploy Service:**
-```bash
-gcloud run deploy nextn-email-sorter \
-  --image gcr.io/gmail4-0/nextn-email-sorter \
-  --region us-central1 \
-  --platform managed \
-  --allow-unauthenticated \
-  --set-env-vars GOOGLE_GENAI_API_KEY=...,GMAIL_CLIENT_ID=..., (etc)
-```
-
-**4. Update Subscription (If URL changes):**
-```bash
-gcloud pubsub subscriptions update gmail-subscription \
-    --push-endpoint=https://YOUR-NEW-SERVICE-URL/api/process-email
-```
-
-**5. Renew Watch (Weekly):**
-```bash
-npx tsx scripts/setup-gmail-watch.ts
-```
-
-## 7. Firestore Schema Reference
-
-### Collections:
-*   **`email_logs`**: Stores individual processing logs.
-    *   Fields: `id` (Message ID), `sender`, `subject`, `category`, `timestamp`, `isUrgent`, `snippet`, `reasoning`.
-*   **`email_stats`**: Stores aggregated statistics, sharded by date (ID: `YYYY-MM-DD`).
-    *   Fields: `totalProcessed`, `categories` (Map), `senders` (Map), `lastUpdated`.
-*   **`email_corrections`**: Stores user corrections for categories.
-    *   Fields: `id`, `sender`, `subject`, `snippet`, `wrongCategory`, `correctCategory`, `timestamp`.
-*   **`email_urgency_corrections`**: Stores user corrections for urgency flags.
-    *   Fields: `id`, `sender`, `subject`, `snippet`, `wasUrgent`, `shouldBeUrgent`, `timestamp`.
-*   **`email_rules`**: Stores user-defined sender rules.
-    *   Fields: `id`, `sender` (email or pattern), `category`, `createdAt`.
-*   **`store_notes`**: Stores shift handoff notes.
-    *   Fields: `id`, `content`, `createdAt`, `author`.
-*   **`settings`**: (Legacy/Unused) Previously used for manual category configuration.
-
-## 8. Configuration & Utility Scripts
-
-### Categories (Dynamic)
-The system **dynamically fetches user-created labels** directly from the authenticated Gmail account.
-*   **Source**: Gmail User Labels (ignores default system labels like 'Promotions' or 'Social').
-*   **Fallback**: If no user labels exist, it defaults to: `[Action Required]`, `Finance`, `Manual Sort`, `Marketing`, `Newsletter`, `Promotions`, `Security Alerts`, `Social`, `Updates`, `Work`.
-*   **Manual Sort**: Automatically included as an option for the AI to signal uncertainty.
-
-### Scripts (`scripts/`)
-*   `setup-gmail-watch.ts`: Sets up the push notification watch on the Gmail Inbox.
-*   `check-subs.ts`: Lists current Google Cloud Pub/Sub subscriptions and their status.
-*   `list-labels.ts`: Lists all labels in the authenticated Gmail account (useful for debugging label IDs).
-*   `debug-auth.ts`: Tests authentication and prints the user's email address.
-*   `diagnose-connection.ts`: Diagnostics for connectivity.
-*   `test-logging.ts`: Tests writing to Google Cloud Logging.
-
-## 9. Frontend Authentication Integration
-We have integrated a frontend-based re-authentication flow to simplify token renewal.
-Instead of running local scripts, you can now re-authenticate directly from the **System Logs** page if an `invalid_grant` error is detected.
-
-**Prerequisite:**
-You must add the callback URL to your Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client ID > **Authorized redirect URIs**.
-*   URL: `https://nextn-email-sorter-fuuedc4idq-uc.a.run.app/api/auth/google/callback`
-
-**How it works:**
-1.  The frontend calls `/api/auth/google/url` to get the OAuth link.
-2.  User approves access.
-3.  Google redirects to `/api/auth/google/callback`.
-4.  The backend saves the new **Refresh Token** to Firestore (`settings/google_auth`).
-5.  `src/lib/gmail-service.ts` automatically prioritizes the Firestore token over the environment variable.
+- **Error: `invalid_grant`**: Refresh token expired. User must either use the UI Re-Auth flow (`/api/auth/google/url` exposed on `/logs`) to save new token to `settings/google_auth`, or regenerate manually via Google OAuth Playground.
+- **Missing Push Events**: Verify Pub/Sub subscription endpoint exactly matches the live deployed `/api/process-email` URL.
+- **React VDOM errors (`expected a string... undefined`)**: Likely caused by missing explicitly declared `lucide-react` icons or named-export mismatches in `/components/ui/`.

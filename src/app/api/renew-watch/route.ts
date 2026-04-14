@@ -1,5 +1,6 @@
 import { getGmailClient } from '@/lib/gmail-service';
 import { saveWatchStatus } from '@/lib/db-service';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; 

@@ -71,12 +71,12 @@ const getAuthClient = async () => {
 
 export const getGmailClient = async () => {
   const authClient = await getAuthClient();
-  return google.gmail({ version: 'v1', auth: authClient });
+  return google.gmail({ version: 'v1', auth: authClient as any });
 };
 
 export const getCalendarClient = async () => {
   const authClient = await getAuthClient();
-  return google.calendar({ version: 'v3', auth: authClient });
+  return google.calendar({ version: 'v3', auth: authClient as any });
 };
 
 export async function getNextCalendarEvent() {
@@ -190,11 +190,11 @@ export async function getInboxCount() {
     try {
         const gmail = await getGmailClient();
         
-        // Fetch only unread messages in the Primary category of the Inbox
-        // This avoids counting thousands of unread Promotions/Social emails
+        // Fetch only unread messages in the Inbox
+        // This query matches what the automated processing system uses
         const res = await gmail.users.messages.list({
             userId: 'me',
-            q: 'label:inbox category:primary is:unread',
+            q: 'label:INBOX is:unread',
             maxResults: 500
         });
         

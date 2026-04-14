@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar, X, Settings2 } from "lucide-react"; 
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar, X, Settings2, AlertCircle, Zap } from "lucide-react"; 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button"; 
 import { Input } from "@/components/ui/input";
