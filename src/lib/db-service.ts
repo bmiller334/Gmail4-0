@@ -361,3 +361,29 @@ export async function saveWatchStatus(historyId: string, expiration: string) {
         throw error;
     }
 }
+
+// --- History ID Tracking (for push notification processing) ---
+
+export async function getLastHistoryId(): Promise<string | null> {
+    try {
+        const doc = await db.collection(COLLECTION_SETTINGS).doc(DOC_WATCH).get();
+        if (doc.exists) {
+            return doc.data()?.historyId || null;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching last historyId:", error);
+        return null;
+    }
+}
+
+export async function updateLastHistoryId(historyId: string) {
+    try {
+        await db.collection(COLLECTION_SETTINGS).doc(DOC_WATCH).set({
+            historyId,
+            lastNotification: new Date()
+        }, { merge: true });
+    } catch (error) {
+        console.error("Error updating historyId:", error);
+    }
+}

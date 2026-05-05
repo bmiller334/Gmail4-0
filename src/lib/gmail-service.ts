@@ -163,8 +163,28 @@ export async function moveEmailToCategory(
       }
 
       if (!labelId) {
-         console.warn(`Label "${categoryLabelName}" does not exist in Gmail. Skipping move.`);
-         return; 
+         console.log(`Label "${categoryLabelName}" does not exist. Creating it...`);
+         try {
+             const newLabel = await gmail.users.labels.create({
+                 userId: 'me',
+                 requestBody: {
+                     name: categoryLabelName,
+                     labelListVisibility: 'labelShow',
+                     messageListVisibility: 'show'
+                 }
+             });
+             
+             if (newLabel.data && newLabel.data.id) {
+                 labelId = newLabel.data.id;
+                 labelCache[categoryLabelName.toLowerCase()] = labelId;
+             } else {
+                 console.warn(`Failed to retrieve ID for newly created label "${categoryLabelName}". Skipping move.`);
+                 return;
+             }
+         } catch (createError) {
+             console.error(`Failed to create label ${categoryLabelName}:`, createError);
+             return;
+         }
       }
       
       console.log(`Moving message ${messageId} to label ${categoryLabelName} (${labelId})`);
@@ -190,19 +210,14 @@ export async function getInboxCount() {
     try {
         const gmail = await getGmailClient();
         
-        // Fetch only unread messages in the Inbox
-        // This query matches what the automated processing system uses
-        const res = await gmail.users.messages.list({
+        // Use the labels API to get the exact unread count for INBOX
+        // This is O(1) and exact, unlike messages.list which relies on search indexing
+        const label = await gmail.users.labels.get({
             userId: 'me',
-            q: 'label:INBOX is:unread',
-            maxResults: 500
+            id: 'INBOX'
         });
         
-        if (res.data.messages && !res.data.nextPageToken) {
-            return res.data.messages.length;
-        }
-        
-        return res.data.resultSizeEstimate || 0;
+        return label.data.messagesUnread || 0;
     } catch (error) {
         console.error("Failed to fetch inbox count:", error);
         return 0;
