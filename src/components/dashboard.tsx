@@ -130,6 +130,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
   const [correcting, setCorrecting] = useState<string | null>(null); 
+  const [summarizingCategory, setSummarizingCategory] = useState<string | null>(null);
+  const [categorySummary, setCategorySummary] = useState<Record<string, string>>({});
   
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [greeting, setGreeting] = useState<string>("Hello, Syracuse."); 
@@ -256,6 +258,28 @@ export default function Dashboard() {
           toast({ variant: "destructive", title: "Error", description: message });
       } finally {
           setCleaning(false);
+      }
+  };
+
+  const handleSummarizeCategory = async (category: string) => {
+      setSummarizingCategory(category);
+      try {
+          const res = await fetch('/api/summarize-category', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ category })
+          });
+          const data = await res.json();
+          if (res.ok) {
+              setCategorySummary(prev => ({ ...prev, [category]: data.summary }));
+              toast({ title: `Summary for ${category} ready` });
+          } else {
+              toast({ variant: "destructive", title: "Summary Failed", description: data.error });
+          }
+      } catch (err) {
+          toast({ variant: "destructive", title: "Error", description: "Failed to summarize." });
+      } finally {
+          setSummarizingCategory(null);
       }
   };
 
@@ -560,9 +584,32 @@ export default function Dashboard() {
                                         >
                                             {category}
                                         </a>
-                                        <span className="text-muted-foreground">{count}</span>
+                                        <div className="flex items-center gap-2">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-6 w-6 hover:bg-primary/10" 
+                                                onClick={() => handleSummarizeCategory(category)}
+                                                disabled={summarizingCategory === category}
+                                                title="Generate AI Overview of Unread Emails"
+                                            >
+                                                {summarizingCategory === category ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <Sparkles className="h-3 w-3 text-primary" />}
+                                            </Button>
+                                            <span className="text-muted-foreground w-6 text-right">{count}</span>
+                                        </div>
                                     </div>
                                     <Progress value={percentage} className="h-2" />
+                                    {categorySummary[category] && (
+                                        <div className="mt-2 text-xs bg-muted/50 p-3 rounded-md border text-muted-foreground relative animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <Button variant="ghost" size="icon" className="absolute top-1 right-1 h-5 w-5 hover:bg-background/80" onClick={() => setCategorySummary(prev => { const n = {...prev}; delete n[category]; return n; })}>
+                                                <X className="h-3 w-3" />
+                                            </Button>
+                                            <div className="font-semibold mb-2 flex items-center gap-1.5 text-primary">
+                                                <Sparkles className="h-3.5 w-3.5" /> AI Overview
+                                            </div>
+                                            <div className="whitespace-pre-wrap leading-relaxed">{categorySummary[category]}</div>
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })}

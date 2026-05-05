@@ -99,62 +99,131 @@ Subject: ${subject}
 Snippet: ${snippet}
     `;
 
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+        try {
+            const { text } = await ai.generate({
+              prompt: prompt,
+              config: {
+                temperature: 0.1, // Low temp for deterministic output
+                maxOutputTokens: 2048, 
+              }
+            });
+
+            // Debug: Log raw text to see what the model actually said
+            // This will show up in the Logs page now that we fixed logging
+            console.log(`[AI] Raw Model Output: ${text.substring(0, 100)}...`);
+
+            // Clean the output
+            let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            
+            let output;
+            try {
+                output = JSON.parse(cleanText);
+            } catch (e) {
+                console.warn(`[AI] JSON Parse Failed. Raw text: "${cleanText}"`);
+                
+                // Aggressive fallback: Extract anything that looks like a category
+                const foundCategory = availableCategories.find(c => cleanText.toLowerCase().includes(c.toLowerCase()));
+                if (foundCategory) {
+                    console.log(`[AI] Recovered category "${foundCategory}" from broken JSON.`);
+                    output = {
+                        category: foundCategory,
+                        reasoning: "Extracted from malformed AI response.",
+                        isUrgent: cleanText.toLowerCase().includes("true")
+                    };
+                } else {
+                     throw new Error("Could not parse JSON or find category in text.");
+                }
+            }
+
+            const rawCat = output.category ? output.category.trim() : "";
+            const finalCategory = matchCategory(rawCat, availableCategories);
+
+            if (finalCategory === "Manual Sort" && rawCat.toLowerCase() !== "manual sort") {
+                 console.warn(`[AI] Mismatch! Model said "${rawCat}", mapped to "Manual Sort". Check matchCategory logic.`);
+            }
+
+            return {
+              category: finalCategory,
+              reasoning: output.reasoning || "No reasoning provided.",
+              isUrgent: !!output.isUrgent,
+            };
+
+        } catch (error: any) {
+            attempt++;
+            console.error(`[AI] Generation Error (Attempt ${attempt}/${maxRetries}):`, error.message);
+            
+            if (attempt >= maxRetries) {
+                return {
+                    category: "Manual Sort",
+                    reasoning: "AI Error: " + error.message,
+                    isUrgent: false
+                };
+            }
+            
+            // Wait before retrying (exponential backoff: 2s, 4s, etc.)
+            const delay = Math.pow(2, attempt) * 1000;
+            console.log(`[AI] Retrying in ${delay}ms due to error...`);
+            await new Promise(res => setTimeout(res, delay));
+        }
+    }
+
+    return {
+        category: "Manual Sort",
+        reasoning: "AI Error: Max retries exceeded.",
+        isUrgent: false
+    };
+  }
+);
+
+export const summarizeCategoryEmails = ai.defineFlow(
+  {
+    name: "summarizeCategoryEmails",
+    inputSchema: z.object({
+      category: z.string(),
+      emails: z.array(z.object({
+        subject: z.string(),
+        sender: z.string(),
+        snippet: z.string(),
+      })),
+    }),
+    outputSchema: z.string(),
+  },
+  async (input) => {
+    const { category, emails } = input;
+    
+    if (emails.length === 0) {
+        return "No unread emails to summarize.";
+    }
+
+    const emailText = emails.map(e => `From: ${e.sender}\nSubject: ${e.subject}\nSnippet: ${e.snippet}\n---`).join("\n");
+
+    const prompt = `
+You are a helpful assistant. Please provide a concise, high-level overview of the following unread emails in the "${category}" category.
+Do not summarize each email individually unless it's very important. Group them by themes or senders if possible.
+Keep the summary to 2-3 paragraphs maximum.
+
+Emails:
+${emailText}
+`;
+
     try {
         const { text } = await ai.generate({
           prompt: prompt,
           config: {
-            temperature: 0.1, // Low temp for deterministic output
-            maxOutputTokens: 2048, 
+            temperature: 0.4, 
+            maxOutputTokens: 1024, 
           }
         });
 
-        // Debug: Log raw text to see what the model actually said
-        // This will show up in the Logs page now that we fixed logging
-        console.log(`[AI] Raw Model Output: ${text.substring(0, 100)}...`);
-
-        // Clean the output
-        let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        
-        let output;
-        try {
-            output = JSON.parse(cleanText);
-        } catch (e) {
-            console.warn(`[AI] JSON Parse Failed. Raw text: "${cleanText}"`);
-            
-            // Aggressive fallback: Extract anything that looks like a category
-            const foundCategory = availableCategories.find(c => cleanText.toLowerCase().includes(c.toLowerCase()));
-            if (foundCategory) {
-                console.log(`[AI] Recovered category "${foundCategory}" from broken JSON.`);
-                output = {
-                    category: foundCategory,
-                    reasoning: "Extracted from malformed AI response.",
-                    isUrgent: cleanText.toLowerCase().includes("true")
-                };
-            } else {
-                 throw new Error("Could not parse JSON or find category in text.");
-            }
-        }
-
-        const rawCat = output.category ? output.category.trim() : "";
-        const finalCategory = matchCategory(rawCat, availableCategories);
-
-        if (finalCategory === "Manual Sort" && rawCat.toLowerCase() !== "manual sort") {
-             console.warn(`[AI] Mismatch! Model said "${rawCat}", mapped to "Manual Sort". Check matchCategory logic.`);
-        }
-
-        return {
-          category: finalCategory,
-          reasoning: output.reasoning || "No reasoning provided.",
-          isUrgent: !!output.isUrgent,
-        };
-
+        return text;
     } catch (error: any) {
-        console.error("[AI] Generation Error:", error.message);
-        return {
-            category: "Manual Sort",
-            reasoning: "AI Error: " + error.message,
-            isUrgent: false
-        };
+        console.error("[AI] Summarization Error:", error.message);
+        throw new Error("Failed to generate summary: " + error.message);
     }
   }
 );
+

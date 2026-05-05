@@ -33,6 +33,12 @@
 **File**: `src/ai/genkit.ts`. Singleton pattern employed explicitly. Do not re-instantiate or duplicate configurations.
 </constraint>
 
+<constraint name="GeminiApiRetries" type="Error Handling">
+**Problem**: Gemini API occasionally returns 503 "High Demand" errors, causing emails to unnecessarily default to "Manual Sort".
+**Solution**: `src/ai/email-classifier.ts` implements an exponential backoff retry loop directly around the `ai.generate` call. 
+**Rule**: DO NOT remove or simplify this retry mechanism. Transient API failures must be caught and retried before falling back to default categories.
+</constraint>
+
 ## Core File Map
 
 | Component | Path | Context / Role |

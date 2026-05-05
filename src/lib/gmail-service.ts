@@ -223,3 +223,66 @@ export async function getInboxCount() {
         return 0;
     }
 }
+
+export async function getUnreadEmailsByCategory(categoryName: string, maxResults = 15) {
+  try {
+    const gmail = await getGmailClient();
+    
+    // Find label ID
+    let labelId = labelCache[categoryName.toLowerCase()];
+    if (!labelId) {
+        const labels = await listLabels(gmail);
+        if (labels) {
+          // @ts-ignore
+          labels.forEach(l => {
+              if (l.name && l.id) {
+                  labelCache[l.name.toLowerCase()] = l.id;
+              }
+          });
+        }
+        labelId = labelCache[categoryName.toLowerCase()];
+    }
+
+    if (!labelId) {
+        // Fallback to INBOX if label isn't found (e.g. standard category not synced)
+        console.warn(`Label ${categoryName} not found. Attempting search query instead.`);
+    }
+
+    // Use search query to find unread emails with this label
+    const query = labelId ? `label:${labelId} is:unread` : `label:"${categoryName}" is:unread`;
+
+    const res = await gmail.users.messages.list({
+        userId: 'me',
+        q: query,
+        maxResults
+    });
+
+    if (!res.data.messages || res.data.messages.length === 0) {
+        return [];
+    }
+
+    const messages = [];
+    for (const m of res.data.messages) {
+        if (!m.id) continue;
+        const details = await gmail.users.messages.get({
+            userId: 'me',
+            id: m.id,
+            format: 'metadata',
+            metadataHeaders: ['Subject', 'From']
+        });
+        
+        const headers = details.data.payload?.headers;
+        const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
+        const sender = headers?.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
+        const snippet = details.data.snippet || '';
+        
+        messages.push({ subject, sender, snippet });
+    }
+    
+    return messages;
+  } catch (error) {
+    console.error(`Failed to get unread emails for ${categoryName}:`, error);
+    throw error;
+  }
+}
+
