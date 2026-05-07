@@ -56,9 +56,8 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Slider } from "@/components/ui/slider";
 
-// New Components
 import { WeatherWidget } from "./weather-widget";
-import { CommodityTicker } from "./commodity-ticker";
+import { MarketInsightsWidget } from "./market-insights-widget";
 import { StatusIndicator } from "./status-indicator";
 import { MonarchWidget } from "./monarch-widget";
 import { NewsTicker } from "./news-ticker";
@@ -132,6 +131,8 @@ export default function Dashboard() {
   const [correcting, setCorrecting] = useState<string | null>(null); 
   const [summarizingCategory, setSummarizingCategory] = useState<string | null>(null);
   const [categorySummary, setCategorySummary] = useState<Record<string, string>>({});
+  const [summarizingRecent, setSummarizingRecent] = useState(false);
+  const [recentSummary, setRecentSummary] = useState<string | null>(null);
   
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [greeting, setGreeting] = useState<string>("Hello, Syracuse."); 
@@ -260,6 +261,28 @@ export default function Dashboard() {
           setCleaning(false);
       }
   };
+
+  const handleSummarizeRecent = useCallback(async (showToast = true) => {
+      setSummarizingRecent(true);
+      try {
+          const res = await fetch('/api/summarize-recent');
+          const data = await res.json();
+          if (res.ok) {
+              setRecentSummary(data.summary);
+              if (showToast) toast({ title: "Recent summary ready" });
+          } else {
+              if (showToast) toast({ variant: "destructive", title: "Summary Failed", description: data.error });
+          }
+      } catch (err) {
+          if (showToast) toast({ variant: "destructive", title: "Error", description: "Failed to summarize." });
+      } finally {
+          setSummarizingRecent(false);
+      }
+  }, [toast]);
+
+  useEffect(() => {
+      handleSummarizeRecent(false);
+  }, [handleSummarizeRecent]);
 
   const handleSummarizeCategory = async (category: string) => {
       setSummarizingCategory(category);
@@ -429,6 +452,16 @@ export default function Dashboard() {
                         <a href="https://mail.google.com/mail/u/0/" target="_blank" className="hover:underline hover:text-primary transition-colors cursor-pointer">
                             Inbox: <span className="font-bold">{inboxCount}</span>
                         </a>
+                        <span className="opacity-30">|</span> 
+                        <Button 
+                            variant="link" 
+                            className="p-0 h-auto text-primary" 
+                            onClick={() => handleSummarizeRecent(true)}
+                            disabled={summarizingRecent}
+                        >
+                            {summarizingRecent ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                            Briefing
+                        </Button>
                     </p>
                 </div>
                 
@@ -481,17 +514,31 @@ export default function Dashboard() {
                 </div>
           </div>
 
+          {recentSummary && (
+              <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg relative animate-in fade-in slide-in-from-top-2">
+                  <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 hover:bg-background/80" onClick={() => setRecentSummary(null)}>
+                      <X className="h-4 w-4" />
+                  </Button>
+                  <h3 className="font-semibold text-primary flex items-center gap-2 mb-2">
+                      <Sparkles className="h-4 w-4" /> Recent Email Briefing
+                  </h3>
+                  <div className="text-sm whitespace-pre-wrap leading-relaxed text-muted-foreground">
+                      {recentSummary}
+                  </div>
+              </div>
+          )}
+
           <div className="w-full">
               <WeatherWidget />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
               <MonarchWidget />
-              <CommodityTicker />
+              <MarketInsightsWidget />
           </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue="activity" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Email Overview</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
@@ -523,45 +570,8 @@ export default function Dashboard() {
                 </Card>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 hover:shadow-md transition-shadow">
-                <CardHeader>
-                    <CardTitle>Weekly Activity</CardTitle>
-                    <CardDescription>Email volume over the last 7 days.</CardDescription>
-                </CardHeader>
-                <CardContent className="pl-2">
-                    <ResponsiveContainer width="100%" height={350}>
-                    <BarChart data={weeklyStats}>
-                        <XAxis
-                        dataKey="date"
-                        stroke="#888888"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(value) => {
-                            const [year, month, day] = value.split('-');
-                            const date = new Date(Number(year), Number(month) - 1, Number(day));
-                            return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
-                        }}
-                        />
-                        <YAxis
-                        stroke="#888888"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(value) => `${value}`}
-                        />
-                        <Tooltip 
-                             cursor={{fill: 'transparent'}}
-                             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                        />
-                        <Bar dataKey="totalProcessed" fill="#0f172a" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                    </ResponsiveContainer>
-                </CardContent>
-                </Card>
-                
-                <Card className="col-span-3 hover:shadow-md transition-shadow">
+            <div className="grid gap-4">
+                <Card className="hover:shadow-md transition-shadow">
                     <CardHeader>
                         <CardTitle>Categories (Today)</CardTitle>
                         <CardDescription>Distribution of incoming emails.</CardDescription>

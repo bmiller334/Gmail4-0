@@ -26,6 +26,7 @@ export const COLLECTION_SETTINGS = 'settings';
 export const DOC_CATEGORIES = 'email_categories'; 
 export const DOC_AUTH = 'google_auth'; // New document for Auth
 export const DOC_WATCH = 'watch_status'; // New document for Watch Status
+export const DOC_RECENT_SUMMARY_CACHE = 'recent_summary_cache';
 
 // ... Types ...
 export type EmailLog = {
@@ -385,5 +386,30 @@ export async function updateLastHistoryId(historyId: string) {
         }, { merge: true });
     } catch (error) {
         console.error("Error updating historyId:", error);
+    }
+}
+
+export async function getRecentSummaryCache(): Promise<{ summary: string, lastLogId: string } | null> {
+    try {
+        const doc = await db.collection(COLLECTION_SETTINGS).doc(DOC_RECENT_SUMMARY_CACHE).get();
+        if (doc.exists) {
+            return doc.data() as { summary: string, lastLogId: string };
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching summary cache:", error);
+        return null;
+    }
+}
+
+export async function setRecentSummaryCache(summary: string, lastLogId: string) {
+    try {
+        await db.collection(COLLECTION_SETTINGS).doc(DOC_RECENT_SUMMARY_CACHE).set({
+            summary,
+            lastLogId,
+            updatedAt: new Date()
+        });
+    } catch (error) {
+        console.error("Error saving summary cache:", error);
     }
 }

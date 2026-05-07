@@ -63,5 +63,8 @@
 ## Debugging
 
 - **Error: `invalid_grant`**: Refresh token expired. User must either use the UI Re-Auth flow (`/api/auth/google/url` exposed on `/logs`) to save new token to `settings/google_auth`, or regenerate manually via Google OAuth Playground.
-- **Missing Push Events**: Verify Pub/Sub subscription endpoint exactly matches the live deployed `/api/process-email` URL.
+- **Missing Push Events (Email Watcher Not Catching Emails)**: 
+  1. **Subscription Check**: Ensure a GCP Pub/Sub *Push Subscription* actually exists for the `gmail-incoming` topic. A missing subscription means the webhook is never triggered. Create it via: `gcloud pubsub subscriptions create gmail-push-sub --topic=gmail-incoming --push-endpoint=https://[YOUR_URL]/api/process-email`
+  2. **API Type Validations**: `gmail.users.history.list` explicitly requires `startHistoryId` to be a string. Since Firestore may store `historyId` as an integer, always cast `.toString()` or the `googleapis` client will silently throw a validation error and fallback to polling.
+  3. **Next.js Route Caching**: Always enforce `export const dynamic = 'force-dynamic'` on the `/api/process-email/route.ts` webhook. Without it, aggressive edge-caching optimizations might skip execution entirely.
 - **React VDOM errors (`expected a string... undefined`)**: Likely caused by missing explicitly declared `lucide-react` icons or named-export mismatches in `/components/ui/`.

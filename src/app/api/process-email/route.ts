@@ -5,6 +5,8 @@ import { logEmailProcessing, getSenderRules, getStats, getLastHistoryId, updateL
 
 const HARD_LIMIT = 1300;
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     // 0. Check Quota First
@@ -49,14 +51,17 @@ export async function POST(req: NextRequest) {
         console.log(`[Push] Fetching history changes since historyId: ${lastHistoryId}`);
         const historyResponse = await gmail.users.history.list({
           userId: 'me',
-          startHistoryId: lastHistoryId,
-          historyTypes: ['messageAdded'],
-          labelId: 'INBOX',
+          startHistoryId: lastHistoryId.toString(),
         });
 
         const histories = historyResponse.data.history || [];
         for (const history of histories) {
           for (const added of (history.messagesAdded || [])) {
+            if (added.message?.id) {
+              messageIds.push(added.message.id);
+            }
+          }
+          for (const added of (history.labelsAdded || [])) {
             if (added.message?.id) {
               messageIds.push(added.message.id);
             }
@@ -90,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     // 5. Always update stored historyId to the latest from notification
     if (newHistoryId) {
-      await updateLastHistoryId(newHistoryId);
+      await updateLastHistoryId(newHistoryId.toString());
     }
 
     if (messageIds.length === 0) {

@@ -227,3 +227,52 @@ ${emailText}
   }
 );
 
+export const summarizeRecentEmails = ai.defineFlow(
+  {
+    name: "summarizeRecentEmails",
+    inputSchema: z.object({
+      emails: z.array(z.object({
+        subject: z.string(),
+        sender: z.string(),
+        category: z.string(),
+        snippet: z.string().optional(),
+      })),
+    }),
+    outputSchema: z.string(),
+  },
+  async (input) => {
+    const { emails } = input;
+    
+    if (emails.length === 0) {
+        return "No recent emails to summarize.";
+    }
+
+    const emailText = emails.map(e => `Category: ${e.category}\nFrom: ${e.sender}\nSubject: ${e.subject}\nSnippet: ${e.snippet || "N/A"}\n---`).join("\n");
+
+    const prompt = `
+You are a helpful assistant. Please provide a concise, high-level briefing of the recently organized emails.
+Emphasize emails that seem more important (e.g., ones categorized into "Action Needed", "Finance", "Updates", "Urgent", etc.).
+Do not go into detail on "Marketing", "Social", "Promotions", etc., but maybe provide a quick mention that there are emails from certain brands or categories if relevant.
+Keep the summary informative, concise, and structured (around 2-3 paragraphs or bullet points).
+
+Recent Emails:
+${emailText}
+`;
+
+    try {
+        const { text } = await ai.generate({
+          prompt: prompt,
+          config: {
+            temperature: 0.4, 
+            maxOutputTokens: 1024, 
+          }
+        });
+
+        return text;
+    } catch (error: any) {
+        console.error("[AI] Recent Summarization Error:", error.message);
+        throw new Error("Failed to generate recent summary: " + error.message);
+    }
+  }
+);
+
