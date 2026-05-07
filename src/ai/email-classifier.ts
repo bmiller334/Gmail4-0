@@ -215,7 +215,7 @@ ${emailText}
           prompt: prompt,
           config: {
             temperature: 0.4, 
-            maxOutputTokens: 1024, 
+            maxOutputTokens: 4096, 
           }
         });
 
@@ -264,7 +264,7 @@ ${emailText}
           prompt: prompt,
           config: {
             temperature: 0.4, 
-            maxOutputTokens: 1024, 
+            maxOutputTokens: 4096, 
           }
         });
 
