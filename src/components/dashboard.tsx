@@ -661,7 +661,7 @@ export default function Dashboard() {
                                 <TableHead>Sender</TableHead>
                                 <TableHead>Category</TableHead>
                                 <TableHead>Urgent?</TableHead>
-                                <TableHead className="text-right">Time</TableHead>
+                                <TableHead className="text-right">Date & Time</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -771,7 +771,9 @@ export default function Dashboard() {
                                             </Dialog>
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-right text-muted-foreground">
+                                    <TableCell className="text-right text-muted-foreground whitespace-nowrap">
+                                        {new Date(log.timestamp._seconds * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                        <span className="mx-1 opacity-50">at</span>
                                         {new Date(log.timestamp._seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                     </TableCell>
                                 </TableRow>

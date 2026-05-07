@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRecentLogs, getRecentSummaryCache, setRecentSummaryCache } from "@/lib/db-service";
 import { summarizeRecentEmails } from "@/ai/email-classifier";
+import { getGmailClient } from "@/lib/gmail-service";
 
 export const dynamic = 'force-dynamic';
 
@@ -22,8 +23,36 @@ export async function GET() {
             return NextResponse.json({ summary: cache.summary });
         }
 
+        const gmail = await getGmailClient();
+        
+        console.log("Checking read/unread status for recent emails...");
+        const checkPromises = logs.map(async (log) => {
+            try {
+                const msg = await gmail.users.messages.get({
+                    userId: 'me',
+                    id: log.id,
+                    format: 'minimal'
+                });
+                if (msg.data.labelIds && msg.data.labelIds.includes('UNREAD')) {
+                    return log;
+                }
+            } catch (e) {
+                return null;
+            }
+            return null;
+        });
+
+        const results = await Promise.all(checkPromises);
+        const unreadLogs = results.filter(Boolean) as typeof logs;
+
+        if (unreadLogs.length === 0) {
+             const summary = "You are all caught up! There are no unread recent emails that require your attention.";
+             await setRecentSummaryCache(summary, latestLogId);
+             return NextResponse.json({ summary });
+        }
+
         // Map them to the required format
-        const emails = logs.map(log => ({
+        const emails = unreadLogs.map(log => ({
             subject: log.subject,
             sender: log.sender,
             category: log.category,
