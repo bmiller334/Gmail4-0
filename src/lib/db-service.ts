@@ -413,3 +413,73 @@ export async function setRecentSummaryCache(summary: string, lastLogId: string) 
         console.error("Error saving summary cache:", error);
     }
 }
+
+// --- Advanced Stats & Spammer Catcher ---
+
+export async function getHistoricalStats(days: number = 30) {
+    try {
+        const today = new Date();
+        const pastDate = new Date(today);
+        pastDate.setDate(today.getDate() - days + 1); // include today
+        const startDateStr = getMountainDateString(pastDate);
+        const endDateStr = getMountainDateString(today);
+
+        // Firestore __name__ (doc ID) range query
+        const snapshot = await db.collection(COLLECTION_STATS)
+            .where('__name__', '>=', startDateStr)
+            .where('__name__', '<=', endDateStr)
+            .get();
+        
+        const dataMap = new Map<string, any>();
+        snapshot.docs.forEach(doc => {
+            dataMap.set(doc.id, doc.data());
+        });
+
+        const results = [];
+        for (let i = 0; i < days; i++) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const dateStr = getMountainDateString(d);
+            const data = dataMap.get(dateStr) || { totalProcessed: 0, categories: {}, senders: {} };
+            results.push({
+                date: dateStr,
+                ...data
+            });
+        }
+        return results.reverse();
+    } catch (error) {
+        console.error("Error fetching historical stats:", error);
+        return [];
+    }
+}
+
+export async function getTopSpammers(limit: number = 20) {
+    try {
+        // Query recent logs that are 'Marketing' or 'Spam'
+        const snapshot = await db.collection(COLLECTION_LOGS)
+            .where('category', 'in', ['Marketing', 'Spam'])
+            .orderBy('timestamp', 'desc')
+            .limit(1000)
+            .get();
+        
+        const logs = snapshot.docs.map(doc => doc.data() as EmailLog);
+        const senderCounts: Record<string, number> = {};
+        const senderCategories: Record<string, string> = {};
+
+        logs.forEach(log => {
+            const s = log.sender.toLowerCase();
+            senderCounts[s] = (senderCounts[s] || 0) + 1;
+            senderCategories[s] = log.category; // track the most recent category
+        });
+
+        const sortedSenders = Object.entries(senderCounts)
+            .map(([sender, count]) => ({ sender, count, category: senderCategories[sender] }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, limit);
+
+        return sortedSenders;
+    } catch (error) {
+        console.error("Error fetching top spammers:", error);
+        return [];
+    }
+}

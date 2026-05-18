@@ -1,70 +1,79 @@
-# AI Agent Context: NextN Email Sorter (Syracuse Hardware Command Center)
+# AI Context: NextN Email Sorter (Syracuse Hardware Command Center)
 
 <system_profile>
-  <stack>Next.js 15 (App Router), React 19, Tailwind CSS, shadcn/ui, Capacitor (Android packaging)</stack>
-  <cloud>Google Cloud Run, Cloud Pub/Sub, Firestore, Google Cloud Logging</cloud>
-  <ai>Genkit with Gemini 2.5 Flash (Rule: DO NOT USE deprecated Gemini 1.5 or 2.0-exp)</ai>
-  <mission>Hardware store command center in Syracuse, KS. Automates inbox zero via LLM email routing, while providing local ag-weather, commodities, and shift notes.</mission>
-  <deployment>Standard: Push `main` to GitHub -> Cloud Build -> Cloud Run. URL: https://nextn-email-sorter-fuuedc4idq-uc.a.run.app</deployment>
+  <stack>Next.js 15 (App Router), React 19, Tailwind CSS, shadcn/ui, Capacitor</stack>
+  <cloud>GCP: Cloud Run, Cloud Pub/Sub, Firestore, Cloud Logging</cloud>
+  <ai>Genkit + Gemini 2.5 Flash (STRICT: Do NOT use Gemini 1.5 or 2.0-exp)</ai>
+  <mission>Hardware store command center in Syracuse, KS. Automates inbox zero via LLM classification. Dashboard provides weather, commodities, news ticker, and shift notes.</mission>
+  <deployment>GitHub `main` -> Cloud Build -> Cloud Run. URL: https://nextn-email-sorter-fuuedc4idq-uc.a.run.app</deployment>
 </system_profile>
 
 ## Architecture & Data Flow
 
-1. **Ingestion (Push)**: `scripts/setup-gmail-watch.ts` registers a Gmail Watch -> Pub/Sub Topic (`gmail-incoming`) pushes POST to Cloud Run `/api/process-email`.
-2. **Processing Pipeline**: Authenticate via long-lived OAuth -> Fetch Email Snippet -> Classify via Gemini 2.5 -> Move Label (Gmail API) -> Log Context to Firestore.
-3. **Adaptive Learning**: Uses last 5 manual corrections (`email_corrections`) as few-shot examples for the classifier prompt. Applies explicit `email_rules` for known senders.
-4. **Dashboard View**: Real-time polling `/api/stats`. Shows inbound volume, categories, shift handoffs, ag-weather, commodity prices, and direct hyperlinked inbox unread count.
-5. **Rate Limiting**: Hard-capped at 1300 AI calls/day (`email_stats.totalProcessed`). Batch cleanup (`/api/cleanup`) restricted to 20 per execution at 15 RPM.
+1. **Ingestion**: `scripts/setup-gmail-watch.ts` registers Gmail Watch -> Pub/Sub Topic `gmail-incoming` -> Push to Cloud Run `/api/process-email`.
+2. **Processing Pipeline**: OAuth Auth -> Fetch Snippet -> Classify (Gemini 2.5) -> Move Label (Gmail API) -> Log to Firestore.
+3. **Adaptive Learning**: Few-shot learning via last 5 user corrections (`email_corrections`). Bypassed by deterministic `email_rules`.
+4. **Dashboard UI**: Real-time `/api/stats` polling. Shows inbound volume, dynamic label unread counts, shift handoffs, ag-weather, commodity prices, and scrolling news ticker.
+5. **Rate Limiting**: 1300 AI calls/day max. Batch cleanup (`/api/cleanup`) capped at 50 emails per request.
 
-## Critical AI Constraints (DO NOT MODIFY)
+## Critical AI Constraints (STRICT)
 
 <constraint name="AuthWorkaround" type="Authentication">
 **Problem**: GCP Service Accounts cannot access personal `@gmail.com` inboxes.
-**Solution**: Custom OAuth 2.0 implementation (`src/lib/gmail-service.ts`) using `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` (env vars or Firestore fallback). Scopes: `gmail.modify`, `calendar.events`.
-**Rule**: DO NOT revert to standard `GoogleAuth` service account logic.
+**Solution**: Custom OAuth 2.0 (`src/lib/gmail-service.ts`) via `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN`.
+**Rule**: DO NOT use standard `GoogleAuth` service account logic.
 </constraint>
 
 <constraint name="FirestoreWrites" type="Database">
 **Problem**: Updating nested map fields fails on non-existent documents.
-**Solution**: `src/lib/db-service.ts` uses try-catch on `NOT_FOUND` errors, falling back to `.set()` configuration if an update target is missing.
+**Solution**: `src/lib/db-service.ts` uses try-catch on `NOT_FOUND` errors, falling back to `.set()` configuration if update target is missing.
 </constraint>
 
 <constraint name="GenkitSingleton" type="AI">
-**File**: `src/ai/genkit.ts`. Singleton pattern employed explicitly. Do not re-instantiate or duplicate configurations.
+**Rule**: `src/ai/genkit.ts` is a singleton. DO NOT re-instantiate or duplicate configurations.
 </constraint>
 
 <constraint name="GeminiApiRetries" type="Error Handling">
-**Problem**: Gemini API occasionally returns 503 "High Demand" errors, causing emails to unnecessarily default to "Manual Sort".
-**Solution**: `src/ai/email-classifier.ts` implements an exponential backoff retry loop directly around the `ai.generate` call. 
-**Rule**: DO NOT remove or simplify this retry mechanism. Transient API failures must be caught and retried before falling back to default categories.
+**Problem**: Gemini API 503 "High Demand" errors cause fallback to "Manual Sort".
+**Solution**: Exponential backoff retry loop in `src/ai/email-classifier.ts`.
+**Rule**: DO NOT remove this retry mechanism. Transient API failures MUST be retried.
 </constraint>
 
 ## Core File Map
 
 | Component | Path | Context / Role |
 | :--- | :--- | :--- |
-| **API Webhook** | `src/app/api/process-email/route.ts` | Entrypoint for Pub/Sub push |
-| **AI Classifier** | `src/ai/email-classifier.ts` | Prompt struct, RAG (few-shot), Genkit call |
-| **Gmail Service** | `src/lib/gmail-service.ts` | OAuth refresh logic and Gmail API adapter |
-| **Data Adapter** | `src/lib/db-service.ts` | Firestore read/writes and initialization |
-| **Dashboard UI** | `src/components/dashboard.tsx` | Main frontend command center layout |
-| **Android Wrapper** | `capacitor.config.ts` | Configurations for standalone APK target |
+| **API Webhook** | `src/app/api/process-email/route.ts` | Pub/Sub push entrypoint |
+| **AI Classifier** | `src/ai/email-classifier.ts` | Prompt struct, RAG context, Genkit call |
+| **Gmail Service** | `src/lib/gmail-service.ts` | OAuth refresh logic & Gmail API adapter |
+| **Database** | `src/lib/db-service.ts` | Firestore initialization and queries |
+| **Dashboard** | `src/components/dashboard.tsx` | Main frontend layout & widgets |
+| **Android** | `capacitor.config.ts` | APK standalone packaging config |
 
-## Database Schema Reference (Firestore)
+## Database Schema (Firestore)
 
-- **`email_logs`**: Flat doc per classified email (`id`, `subject`, `category`, `reasoning`).
-- **`email_stats`**: Aggregated daily counts. Documented by date (`YYYY-MM-DD`). 
-- **`email_corrections`**: User category overrides (powers few-shot learning).
-- **`email_urgency_corrections`**: User urgency overrides.
-- **`email_rules`**: Sender-specific hardcoded routing constraints.
-- **`store_notes`**: Stickies for hardware store shift handoffs.
-- **`settings`**: Master configs, notably `google_auth` (stores UI-renewed refresh tokens).
+- **`email_logs`**: Classified email data (`id`, `subject`, `category`, `reasoning`).
+- **`email_stats`**: Aggregated daily counts (Document ID: `YYYY-MM-DD`). 
+- **`email_corrections`**: Category overrides (fuels few-shot learning).
+- **`email_urgency_corrections`**: Urgency overrides.
+- **`email_rules`**: Hardcoded routing rules (bypasses AI).
+- **`store_notes`**: Hardware store shift handoff stickies.
+- **`settings`**: Master configs (e.g., `google_auth` stores UI-renewed refresh tokens).
 
-## Debugging
+## Debugging Playbook
 
-- **Error: `invalid_grant`**: Refresh token expired. User must either use the UI Re-Auth flow (`/api/auth/google/url` exposed on `/logs`) to save new token to `settings/google_auth`, or regenerate manually via Google OAuth Playground.
-- **Missing Push Events (Email Watcher Not Catching Emails)**: 
-  1. **Subscription Check**: Ensure a GCP Pub/Sub *Push Subscription* actually exists for the `gmail-incoming` topic. A missing subscription means the webhook is never triggered. Create it via: `gcloud pubsub subscriptions create gmail-push-sub --topic=gmail-incoming --push-endpoint=https://[YOUR_URL]/api/process-email`
-  2. **API Type Validations**: `gmail.users.history.list` explicitly requires `startHistoryId` to be a string. Since Firestore may store `historyId` as an integer, always cast `.toString()` or the `googleapis` client will silently throw a validation error and fallback to polling.
-  3. **Next.js Route Caching**: Always enforce `export const dynamic = 'force-dynamic'` on the `/api/process-email/route.ts` webhook. Without it, aggressive edge-caching optimizations might skip execution entirely.
-- **React VDOM errors (`expected a string... undefined`)**: Likely caused by missing explicitly declared `lucide-react` icons or named-export mismatches in `/components/ui/`.
+- **`invalid_grant` Error**: Refresh token expired. Use UI Re-Auth flow (`/api/auth/google/url`) to save new token to `settings/google_auth`.
+- **Missing Push Events (No Emails Received)**:
+  1. **Subscription**: Verify Pub/Sub Push Subscription exists for `gmail-incoming` topic.
+  2. **API Types**: `gmail.users.history.list` requires `startHistoryId` as string. Cast `.toString()` to avoid silent failures.
+  3. **Caching**: Webhook route MUST enforce `export const dynamic = 'force-dynamic'`.
+  4. **Watch Expiration**: Dashboard UI shows alert if watch expires. "Fix Now" button hits `/api/watch` to renew.
+- **React VDOM Errors**: Check for missing `lucide-react` icons or named-export typos in `/components/ui/`.
+
+## Recent Architecture Changes
+
+- **Stats & Insights Dashboard** (`src/components/stats-widget.tsx`): Added a comprehensive analytics widget for visualizing inbox volume trends over time (day, week, month, year) backed by a new `/api/advanced-stats` endpoint.
+- **Spammer Catcher**: Integrated a feature within the Stats section to automatically identify and list top-volume senders regularly categorized as "Spam" or "Marketing," with quick actions to implement deterministic filtering rules.
+- **Label Overview Widget** (`src/components/label-overview-widget.tsx`): Replaced static overview with dynamic accordion displaying real-time label unread counts and recent subject lines.
+- **News Ticker**: Replaced static news widget with scrolling ticker (`src/components/news-ticker.tsx`).
+- **Gmail Watch Auto-Renewal**: Added automatic renewal flow via dashboard to prevent real-time sync expiration, fixing OAuth redirect URI mismatches for production vs local.

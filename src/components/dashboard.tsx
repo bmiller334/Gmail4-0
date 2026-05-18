@@ -59,9 +59,9 @@ import { Slider } from "@/components/ui/slider";
 import { WeatherWidget } from "./weather-widget";
 import { MarketInsightsWidget } from "./market-insights-widget";
 import { StatusIndicator } from "./status-indicator";
-import { MonarchWidget } from "./monarch-widget";
 import { NewsTicker } from "./news-ticker";
-
+import { LabelOverviewWidget } from "./label-overview-widget";
+import { StatsWidget } from "./stats-widget";
 // Types
 type DashboardStats = {
     totalProcessed: number;
@@ -532,8 +532,7 @@ export default function Dashboard() {
               <WeatherWidget />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-              <MonarchWidget />
+          <div className="grid gap-4 md:grid-cols-1">
               <MarketInsightsWidget />
           </div>
       </div>
@@ -543,11 +542,11 @@ export default function Dashboard() {
           <TabsTrigger value="overview">Email Overview</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
           <TabsTrigger value="rules">Sender Rules</TabsTrigger>
+          <TabsTrigger value="stats">Insights & Stats</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-             {/* ... existing overview content ... */}
-             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
                 <Card className="hover:scale-[1.01] transition-transform duration-200 shadow-md hover:shadow-lg border-primary/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Today's Volume</CardTitle>
@@ -570,63 +569,7 @@ export default function Dashboard() {
                 </Card>
             </div>
 
-            <div className="grid gap-4">
-                <Card className="hover:shadow-md transition-shadow">
-                    <CardHeader>
-                        <CardTitle>Categories (Today)</CardTitle>
-                        <CardDescription>Distribution of incoming emails.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                        {EMAIL_CATEGORIES.map((category) => {
-                            const count = stats?.categories?.[category] || 0;
-                            const percentage = Math.round((count / maxCategoryCount) * 100);
-                            
-                            return (
-                                <div key={category} className="space-y-1">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <a 
-                                            href={`https://mail.google.com/mail/u/0/#label/${encodeURIComponent(category)}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="font-medium hover:underline hover:text-primary transition-colors cursor-pointer"
-                                            title={`Open ${category} in Gmail`}
-                                        >
-                                            {category}
-                                        </a>
-                                        <div className="flex items-center gap-2">
-                                            <Button 
-                                                variant="ghost" 
-                                                size="icon" 
-                                                className="h-6 w-6 hover:bg-primary/10" 
-                                                onClick={() => handleSummarizeCategory(category)}
-                                                disabled={summarizingCategory === category}
-                                                title="Generate AI Overview of Unread Emails"
-                                            >
-                                                {summarizingCategory === category ? <Loader2 className="h-3 w-3 animate-spin text-primary" /> : <Sparkles className="h-3 w-3 text-primary" />}
-                                            </Button>
-                                            <span className="text-muted-foreground w-6 text-right">{count}</span>
-                                        </div>
-                                    </div>
-                                    <Progress value={percentage} className="h-2" />
-                                    {categorySummary[category] && (
-                                        <div className="mt-2 text-xs bg-muted/50 p-3 rounded-md border text-muted-foreground relative animate-in fade-in slide-in-from-top-2 duration-300">
-                                            <Button variant="ghost" size="icon" className="absolute top-1 right-1 h-5 w-5 hover:bg-background/80" onClick={() => setCategorySummary(prev => { const n = {...prev}; delete n[category]; return n; })}>
-                                                <X className="h-3 w-3" />
-                                            </Button>
-                                            <div className="font-semibold mb-2 flex items-center gap-1.5 text-primary">
-                                                <Sparkles className="h-3.5 w-3.5" /> AI Overview
-                                            </div>
-                                            <div className="whitespace-pre-wrap leading-relaxed">{categorySummary[category]}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
+            <LabelOverviewWidget />
         </TabsContent>
 
         <TabsContent value="activity" className="space-y-4">
@@ -913,6 +856,10 @@ export default function Dashboard() {
                      </Table>
                  </CardContent>
              </Card>
+        </TabsContent>
+
+        <TabsContent value="stats" className="space-y-4">
+            <StatsWidget />
         </TabsContent>
       </Tabs>
 
