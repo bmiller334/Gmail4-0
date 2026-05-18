@@ -1,17 +1,17 @@
 "use client";
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar, X, Settings2, AlertCircle, Zap } from "lucide-react"; 
+import { Activity, AlertTriangle, Mail, RefreshCw, Lightbulb, Loader2, Eraser, Edit2, Check, Search, Plus, Trash2, Siren, Sparkles, ExternalLink, Terminal, BrainCircuit, Hammer, Wrench, Calendar, X, Settings2, AlertCircle, Zap } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Button } from "@/components/ui/button"; 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
     Table,
@@ -101,12 +101,38 @@ type RuleSuggestion = {
     confidence: number;
 };
 
-const getGreetingText = (calendarEvent?: { summary: string, start: string } | null) => {
-    if (calendarEvent) {
-        const time = new Date(calendarEvent.start).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
-        return `Heads up: "${calendarEvent.summary}" at ${time}.`;
-    }
+const fetchRandomHeading = async () => {
+    const apis = [
+        {
+            url: 'https://v2.jokeapi.dev/joke/Any?type=single&safe-mode',
+            extract: (data: any) => data.joke
+        },
+        {
+            url: 'https://api.adviceslip.com/advice',
+            extract: (data: any) => {
+                const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+                return parsed.slip.advice;
+            }
+        },
+        {
+            url: 'https://uselessfacts.jsph.pl/api/v2/facts/random',
+            extract: (data: any) => data.text
+        }
+    ];
 
+    const randomApi = apis[Math.floor(Math.random() * apis.length)];
+    try {
+        const res = await fetch(randomApi.url);
+        const text = await res.text();
+        const data = JSON.parse(text);
+        return randomApi.extract(data);
+    } catch (e) {
+        console.error("Failed to fetch dynamic heading", e);
+        return null;
+    }
+};
+
+const getFallbackGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 5) return "Burning the midnight oil?";
     if (hour < 11) return "Good Morning, Syracuse.";
@@ -117,756 +143,756 @@ const getGreetingText = (calendarEvent?: { summary: string, start: string } | nu
 };
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>([]);
-  const [logs, setLogs] = useState<EmailLog[]>([]);
-  const [rules, setRules] = useState<SenderRule[]>([]);
-  const [insights, setInsights] = useState<string[]>([]);
-  const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([]);
-  const [inboxCount, setInboxCount] = useState<number>(0);
-  const [watchStatus, setWatchStatus] = useState<any>(null);
-  
-  const [loading, setLoading] = useState(true);
-  const [cleaning, setCleaning] = useState(false);
-  const [correcting, setCorrecting] = useState<string | null>(null); 
-  const [summarizingCategory, setSummarizingCategory] = useState<string | null>(null);
-  const [categorySummary, setCategorySummary] = useState<Record<string, string>>({});
-  const [summarizingRecent, setSummarizingRecent] = useState(false);
-  const [recentSummary, setRecentSummary] = useState<string | null>(null);
-  
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
-  const [greeting, setGreeting] = useState<string>("Hello, Syracuse."); 
-  const [nextEvent, setNextEvent] = useState<any>(null);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>([]);
+    const [logs, setLogs] = useState<EmailLog[]>([]);
+    const [rules, setRules] = useState<SenderRule[]>([]);
+    const [insights, setInsights] = useState<string[]>([]);
+    const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([]);
+    const [inboxCount, setInboxCount] = useState<number>(0);
+    const [watchStatus, setWatchStatus] = useState<any>(null);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
+    const [loading, setLoading] = useState(true);
+    const [cleaning, setCleaning] = useState(false);
+    const [correcting, setCorrecting] = useState<string | null>(null);
+    const [summarizingCategory, setSummarizingCategory] = useState<string | null>(null);
+    const [categorySummary, setCategorySummary] = useState<Record<string, string>>({});
+    const [summarizingRecent, setSummarizingRecent] = useState(false);
+    const [recentSummary, setRecentSummary] = useState<string | null>(null);
 
-  const [newRuleSender, setNewRuleSender] = useState("");
-  const [newRuleCategory, setNewRuleCategory] = useState<string>(EMAIL_CATEGORIES[0]);
-  const [isAddingRule, setIsAddingRule] = useState(false);
+    const [currentDate, setCurrentDate] = useState<Date | null>(null);
+    const [greeting, setGreeting] = useState<string>("Loading...");
+    const [nextEvent, setNextEvent] = useState<any>(null);
+    const funHeadingRef = useRef<string | null>(null);
 
-  // State for editing suggestion before adding
-  const [editingSuggestion, setEditingSuggestion] = useState<RuleSuggestion | null>(null);
-  const [editedSuggestionCategory, setEditedSuggestionCategory] = useState<string>("");
+    const [searchTerm, setSearchTerm] = useState("");
+    const [categoryFilter, setCategoryFilter] = useState("All");
 
-  const [cleanupCount, setCleanupCount] = useState<number>(10);
-  const DAILY_HARD_LIMIT = 1300;
+    const [newRuleSender, setNewRuleSender] = useState("");
+    const [newRuleCategory, setNewRuleCategory] = useState<string>(EMAIL_CATEGORIES[0]);
+    const [isAddingRule, setIsAddingRule] = useState(false);
 
-  const { toast } = useToast();
+    // State for editing suggestion before adding
+    const [editingSuggestion, setEditingSuggestion] = useState<RuleSuggestion | null>(null);
+    const [editedSuggestionCategory, setEditedSuggestionCategory] = useState<string>("");
 
-  const filtersRef = useRef({ searchTerm, categoryFilter });
+    const [cleanupCount, setCleanupCount] = useState<number>(10);
+    const DAILY_HARD_LIMIT = 1300;
 
-  useEffect(() => {
-     filtersRef.current = { searchTerm, categoryFilter };
-  }, [searchTerm, categoryFilter]);
+    const { toast } = useToast();
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-        const queryParams = new URLSearchParams();
-        const { searchTerm: currentSearch, categoryFilter: currentCategory } = filtersRef.current;
-        if (currentSearch) queryParams.set('search', currentSearch);
-        if (currentCategory && currentCategory !== 'All') queryParams.set('category', currentCategory);
+    const filtersRef = useRef({ searchTerm, categoryFilter });
 
-        const [res, suggestionsRes] = await Promise.all([
-            fetch(`/api/stats?${queryParams.toString()}`),
-            fetch('/api/rules/suggestions')
-        ]);
-        
-        const data = await res.json();
-        const suggestionsData = await suggestionsRes.json();
+    useEffect(() => {
+        filtersRef.current = { searchTerm, categoryFilter };
+    }, [searchTerm, categoryFilter]);
 
-        setStats(data.stats);
-        setWeeklyStats(data.weeklyStats || []);
-        setLogs(data.logs || []);
-        setInsights(data.insights || []);
-        setRules(data.rules || []);
-        setInboxCount(data.inboxCount || 0);
-        setSuggestions(suggestionsData.suggestions || []);
-        setWatchStatus(data.watchStatus || null);
-
-    } catch (err) {
-        console.error("Failed to fetch dashboard data", err);
-    } finally {
-        setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-      const timer = setTimeout(() => {
-          fetchData();
-      }, 500);
-      return () => clearTimeout(timer);
-  }, [searchTerm, categoryFilter, fetchData]);
-
-  useEffect(() => {
-    setCurrentDate(new Date());
-    
-    const fetchCalendar = async () => {
+    const fetchData = useCallback(async () => {
+        setLoading(true);
         try {
-            const res = await fetch('/api/calendar');
+            const queryParams = new URLSearchParams();
+            const { searchTerm: currentSearch, categoryFilter: currentCategory } = filtersRef.current;
+            if (currentSearch) queryParams.set('search', currentSearch);
+            if (currentCategory && currentCategory !== 'All') queryParams.set('category', currentCategory);
+
+            const [res, suggestionsRes] = await Promise.all([
+                fetch(`/api/stats?${queryParams.toString()}`),
+                fetch('/api/rules/suggestions')
+            ]);
+
             const data = await res.json();
-            // Suppress error if no event found or API disabled, just silently fail
-            if (data.event) {
-                setNextEvent(data.event);
-                setGreeting(getGreetingText(data.event));
-            } else {
-                 setGreeting(getGreetingText(null));
+            const suggestionsData = await suggestionsRes.json();
+
+            setStats(data.stats);
+            setWeeklyStats(data.weeklyStats || []);
+            setLogs(data.logs || []);
+            setInsights(data.insights || []);
+            setRules(data.rules || []);
+            setInboxCount(data.inboxCount || 0);
+            setSuggestions(suggestionsData.suggestions || []);
+            setWatchStatus(data.watchStatus || null);
+
+        } catch (err) {
+            console.error("Failed to fetch dashboard data", err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchData();
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm, categoryFilter, fetchData]);
+
+    useEffect(() => {
+        setCurrentDate(new Date());
+
+        const updateGreeting = async () => {
+            if (!funHeadingRef.current) {
+                const text = await fetchRandomHeading();
+                funHeadingRef.current = text || getFallbackGreeting();
             }
-        } catch (e) {
-            // Silently fail for calendar errors to avoid banner noise
-            console.warn("Calendar fetch failed (suppressed UI error)", e);
-            setGreeting(getGreetingText(null));
+
+            try {
+                const res = await fetch('/api/calendar');
+                const data = await res.json();
+                if (data.event) {
+                    setNextEvent(data.event);
+                    const time = new Date(data.event.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                    setGreeting(`Heads up: "${data.event.summary}" at ${time}.`);
+                } else {
+                    setNextEvent(null);
+                    if (funHeadingRef.current) setGreeting(funHeadingRef.current);
+                }
+            } catch (e) {
+                console.warn("Calendar fetch failed (suppressed UI error)", e);
+                setNextEvent(null);
+                if (funHeadingRef.current) setGreeting(funHeadingRef.current);
+            }
+        };
+
+        updateGreeting();
+
+        const interval = setInterval(() => {
+            fetchData();
+            updateGreeting();
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [fetchData]);
+
+    const handleCleanup = async () => {
+        setCleaning(true);
+        toast({
+            title: "Starting Cleanup",
+            description: `Processing up to ${cleanupCount} emails from your inbox...`,
+        });
+
+        try {
+            const res = await fetch('/api/cleanup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ batchSize: cleanupCount })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                toast({
+                    title: "Cleanup Complete",
+                    description: data.message,
+                });
+                fetchData();
+            } else {
+                const errorMessage = data?.error || data?.message || "Unknown error";
+                toast({ variant: "destructive", title: "Cleanup Failed", description: errorMessage });
+            }
+        } catch (err: any) {
+            const message = err?.message || "Failed to connect to server.";
+            toast({ variant: "destructive", title: "Error", description: message });
+        } finally {
+            setCleaning(false);
         }
     };
-    
-    fetchCalendar();
 
-    const interval = setInterval(() => {
-        fetchData();
-        fetchCalendar();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [fetchData]); 
-
-  const handleCleanup = async () => {
-      setCleaning(true);
-      toast({
-          title: "Starting Cleanup",
-          description: `Processing up to ${cleanupCount} emails from your inbox...`,
-      });
-
-      try {
-          const res = await fetch('/api/cleanup', { 
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ batchSize: cleanupCount })
-          });
-          const data = await res.json();
-
-          if (res.ok) {
-              toast({
-                  title: "Cleanup Complete",
-                  description: data.message,
-              });
-              fetchData();
-          } else {
-              const errorMessage = data?.error || data?.message || "Unknown error";
-              toast({ variant: "destructive", title: "Cleanup Failed", description: errorMessage });
-          }
-      } catch (err: any) {
-           const message = err?.message || "Failed to connect to server.";
-          toast({ variant: "destructive", title: "Error", description: message });
-      } finally {
-          setCleaning(false);
-      }
-  };
-
-  const handleSummarizeRecent = useCallback(async (showToast = true) => {
-      setSummarizingRecent(true);
-      try {
-          const res = await fetch('/api/summarize-recent');
-          const data = await res.json();
-          if (res.ok) {
-              setRecentSummary(data.summary);
-              if (showToast) toast({ title: "Recent summary ready" });
-          } else {
-              if (showToast) toast({ variant: "destructive", title: "Summary Failed", description: data.error });
-          }
-      } catch (err) {
-          if (showToast) toast({ variant: "destructive", title: "Error", description: "Failed to summarize." });
-      } finally {
-          setSummarizingRecent(false);
-      }
-  }, [toast]);
-
-  useEffect(() => {
-      handleSummarizeRecent(false);
-  }, [handleSummarizeRecent]);
-
-  const handleSummarizeCategory = async (category: string) => {
-      setSummarizingCategory(category);
-      try {
-          const res = await fetch('/api/summarize-category', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ category })
-          });
-          const data = await res.json();
-          if (res.ok) {
-              setCategorySummary(prev => ({ ...prev, [category]: data.summary }));
-              toast({ title: `Summary for ${category} ready` });
-          } else {
-              toast({ variant: "destructive", title: "Summary Failed", description: data.error });
-          }
-      } catch (err) {
-          toast({ variant: "destructive", title: "Error", description: "Failed to summarize." });
-      } finally {
-          setSummarizingCategory(null);
-      }
-  };
-
-  const handleCorrection = async (log: EmailLog, newCategory: string) => {
-    if (newCategory === log.category) return;
-    
-    setCorrecting(log.id);
-    try {
-        const res = await fetch('/api/correct-category', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id: log.id,
-                sender: log.sender,
-                subject: log.subject,
-                snippet: log.snippet,
-                wrongCategory: log.category,
-                correctCategory: newCategory
-            })
-        });
-
-        if (res.ok) {
-            toast({ title: "Correction Logged", description: "The AI will learn from this correction." });
-            setLogs(logs.map(l => l.id === log.id ? { ...l, category: newCategory } : l));
-        } else {
-             toast({ variant: "destructive", title: "Correction Failed" });
+    const handleSummarizeRecent = useCallback(async (showToast = true) => {
+        setSummarizingRecent(true);
+        try {
+            const res = await fetch('/api/summarize-recent');
+            const data = await res.json();
+            if (res.ok) {
+                setRecentSummary(data.summary);
+                if (showToast) toast({ title: "Recent summary ready" });
+            } else {
+                if (showToast) toast({ variant: "destructive", title: "Summary Failed", description: data.error });
+            }
+        } catch (err) {
+            if (showToast) toast({ variant: "destructive", title: "Error", description: "Failed to summarize." });
+        } finally {
+            setSummarizingRecent(false);
         }
-    } catch (err) {
-        toast({ variant: "destructive", title: "Error" });
-    } finally {
-        setCorrecting(null);
-    }
-  };
+    }, [toast]);
 
-  const handleUrgencyCorrection = async (log: EmailLog, shouldBeUrgent: boolean) => {
-    try {
-        const res = await fetch('/api/correct-urgency', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id: log.id,
-                sender: log.sender,
-                subject: log.subject,
-                snippet: log.snippet,
-                wasUrgent: log.isUrgent,
-                shouldBeUrgent
-            })
-        });
+    useEffect(() => {
+        handleSummarizeRecent(false);
+    }, [handleSummarizeRecent]);
 
-        if (res.ok) {
-            toast({ title: "Urgency Updated", description: "AI feedback recorded." });
-            setLogs(logs.map(l => l.id === log.id ? { ...l, isUrgent: shouldBeUrgent } : l));
-        } else {
-            toast({ variant: "destructive", title: "Update Failed" });
+    const handleSummarizeCategory = async (category: string) => {
+        setSummarizingCategory(category);
+        try {
+            const res = await fetch('/api/summarize-category', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setCategorySummary(prev => ({ ...prev, [category]: data.summary }));
+                toast({ title: `Summary for ${category} ready` });
+            } else {
+                toast({ variant: "destructive", title: "Summary Failed", description: data.error });
+            }
+        } catch (err) {
+            toast({ variant: "destructive", title: "Error", description: "Failed to summarize." });
+        } finally {
+            setSummarizingCategory(null);
         }
-    } catch (err) {
-        toast({ variant: "destructive", title: "Error" });
-    }
-  };
+    };
 
-  const handleAddRule = async (sender = newRuleSender, category = newRuleCategory) => {
-      if (!sender) return;
-      setIsAddingRule(true);
-      try {
-          const res = await fetch('/api/rules', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sender: sender, category: category })
-          });
-          
-          if (res.ok) {
-              toast({ title: "Rule Added", description: `Emails from "${sender}" will be moved to ${category}.` });
-              if (sender === newRuleSender) setNewRuleSender("");
-              setEditingSuggestion(null); // Close modal if open
-              fetchData(); 
-          }
-      } catch (err) {
-          toast({ variant: "destructive", title: "Error adding rule" });
-      } finally {
-          setIsAddingRule(false);
-      }
-  };
+    const handleCorrection = async (log: EmailLog, newCategory: string) => {
+        if (newCategory === log.category) return;
 
-  const handleDeleteRule = async (id: string) => {
-      try {
-          const res = await fetch(`/api/rules?id=${id}`, { method: 'DELETE' });
-          if (res.ok) {
-              toast({ title: "Rule Deleted" });
-              setRules(rules.filter(r => r.id !== id));
-          }
-      } catch (err) {
-          toast({ variant: "destructive", title: "Error deleting rule" });
-      }
-  };
+        setCorrecting(log.id);
+        try {
+            const res = await fetch('/api/correct-category', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: log.id,
+                    sender: log.sender,
+                    subject: log.subject,
+                    snippet: log.snippet,
+                    wrongCategory: log.category,
+                    correctCategory: newCategory
+                })
+            });
 
-  const openSuggestionEdit = (s: RuleSuggestion) => {
-      setEditedSuggestionCategory(s.category);
-      setEditingSuggestion(s);
-  };
+            if (res.ok) {
+                toast({ title: "Correction Logged", description: "The AI will learn from this correction." });
+                setLogs(logs.map(l => l.id === log.id ? { ...l, category: newCategory } : l));
+            } else {
+                toast({ variant: "destructive", title: "Correction Failed" });
+            }
+        } catch (err) {
+            toast({ variant: "destructive", title: "Error" });
+        } finally {
+            setCorrecting(null);
+        }
+    };
 
-  const maxCategoryCount = stats ? Math.max(...Object.values(stats.categories || {}), 1) : 1;
-  const remainingQuota = Math.max(0, DAILY_HARD_LIMIT - (stats?.totalProcessed || 0));
+    const handleUrgencyCorrection = async (log: EmailLog, shouldBeUrgent: boolean) => {
+        try {
+            const res = await fetch('/api/correct-urgency', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: log.id,
+                    sender: log.sender,
+                    subject: log.subject,
+                    snippet: log.snippet,
+                    wasUrgent: log.isUrgent,
+                    shouldBeUrgent
+                })
+            });
 
-  return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
-      {watchStatus && new Date(watchStatus.expiration) < new Date() && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-lg flex items-center justify-between animate-pulse shadow-sm">
-              <div className="flex items-center gap-3">
-                  <AlertCircle className="h-5 w-5" />
-                  <div>
-                      <p className="font-bold text-sm">Gmail Catch System Offline</p>
-                      <p className="text-xs opacity-80">The Gmail watch has expired. New emails will not be sorted automatically.</p>
-                  </div>
-              </div>
-              <Button size="sm" variant="destructive" className="font-bold" onClick={async () => {
-                  try {
-                      const res = await fetch('/api/watch');
-                      if (res.ok) {
-                        toast({ title: "Watch Renewed", description: "Real-time email catching is back online." });
-                        fetchData();
-                      }
-                  } catch (e) {}
-              }}>
-                  <Zap className="mr-2 h-4 w-4" /> Fix Now
-              </Button>
-          </div>
-      )}
+            if (res.ok) {
+                toast({ title: "Urgency Updated", description: "AI feedback recorded." });
+                setLogs(logs.map(l => l.id === log.id ? { ...l, isUrgent: shouldBeUrgent } : l));
+            } else {
+                toast({ variant: "destructive", title: "Update Failed" });
+            }
+        } catch (err) {
+            toast({ variant: "destructive", title: "Error" });
+        }
+    };
 
-      <div className="flex flex-col gap-4">
-          <NewsTicker />
-          <div className="flex justify-between items-end mb-2">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                        {greeting}
-                    </h2>
-                    <p className="text-muted-foreground flex items-center gap-2 mt-1">
-                        <Calendar className="h-4 w-4 opacity-50" />
-                        {currentDate ? currentDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : "Loading date..."}
-                        
-                        {!nextEvent && (
-                            <>
-                                <span className="opacity-30">|</span> 
-                                Ready for the day?
-                            </>
-                        )}
-                        <span className="opacity-30">|</span> 
-                        <a href="https://mail.google.com/mail/u/0/" target="_blank" className="hover:underline hover:text-primary transition-colors cursor-pointer">
-                            Inbox: <span className="font-bold">{inboxCount}</span>
-                        </a>
-                        <span className="opacity-30">|</span> 
-                        <Button 
-                            variant="link" 
-                            className="p-0 h-auto text-primary" 
-                            onClick={() => handleSummarizeRecent(true)}
-                            disabled={summarizingRecent}
-                        >
-                            {summarizingRecent ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-                            Briefing
-                        </Button>
-                    </p>
-                </div>
-                
-                <div className="flex items-center space-x-4">
-                    <StatusIndicator />
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground hidden md:flex">
-                        <Activity className="h-4 w-4" />
-                        <span>{loading ? "Updating..." : "System Active"}</span>
+    const handleAddRule = async (sender = newRuleSender, category = newRuleCategory) => {
+        if (!sender) return;
+        setIsAddingRule(true);
+        try {
+            const res = await fetch('/api/rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sender: sender, category: category })
+            });
+
+            if (res.ok) {
+                toast({ title: "Rule Added", description: `Emails from "${sender}" will be moved to ${category}.` });
+                if (sender === newRuleSender) setNewRuleSender("");
+                setEditingSuggestion(null); // Close modal if open
+                fetchData();
+            }
+        } catch (err) {
+            toast({ variant: "destructive", title: "Error adding rule" });
+        } finally {
+            setIsAddingRule(false);
+        }
+    };
+
+    const handleDeleteRule = async (id: string) => {
+        try {
+            const res = await fetch(`/api/rules?id=${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                toast({ title: "Rule Deleted" });
+                setRules(rules.filter(r => r.id !== id));
+            }
+        } catch (err) {
+            toast({ variant: "destructive", title: "Error deleting rule" });
+        }
+    };
+
+    const openSuggestionEdit = (s: RuleSuggestion) => {
+        setEditedSuggestionCategory(s.category);
+        setEditingSuggestion(s);
+    };
+
+    const maxCategoryCount = stats ? Math.max(...Object.values(stats.categories || {}), 1) : 1;
+    const remainingQuota = Math.max(0, DAILY_HARD_LIMIT - (stats?.totalProcessed || 0));
+
+    return (
+        <div className="p-8 space-y-8 max-w-7xl mx-auto">
+            {watchStatus && new Date(watchStatus.expiration) < new Date() && (
+                <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-lg flex items-center justify-between animate-pulse shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <AlertCircle className="h-5 w-5" />
+                        <div>
+                            <p className="font-bold text-sm">Gmail Catch System Offline</p>
+                            <p className="text-xs opacity-80">The Gmail watch has expired. New emails will not be sorted automatically.</p>
+                        </div>
                     </div>
-                    {/* Removed Log Button since Indicator links there */}
-                    <Button variant="outline" size="icon" onClick={fetchData}>
-                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    <Button size="sm" variant="destructive" className="font-bold" onClick={async () => {
+                        try {
+                            const res = await fetch('/api/watch');
+                            if (res.ok) {
+                                toast({ title: "Watch Renewed", description: "Real-time email catching is back online." });
+                                fetchData();
+                            }
+                        } catch (e) { }
+                    }}>
+                        <Zap className="mr-2 h-4 w-4" /> Fix Now
                     </Button>
-                    
-                    <Popover>
-                        <PopoverTrigger asChild>
-                             <Button disabled={cleaning} className="min-w-[140px]">
-                                {cleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
-                                {cleaning ? "Cleaning..." : `Clean (${cleanupCount})`}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                            <div className="grid gap-4">
-                                <div className="space-y-2">
-                                    <h4 className="font-medium leading-none">Clean Quantity</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                        Adjust how many emails to process at once.
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <Slider 
-                                        defaultValue={[10]} 
-                                        max={Math.min(50, remainingQuota)} // Cap at 50 for safety/timeout reasons per batch, or remaining quota
-                                        min={10} 
-                                        step={10} 
-                                        value={[cleanupCount]}
-                                        onValueChange={(val) => setCleanupCount(val[0])}
-                                    />
-                                    <span className="w-8 text-sm font-bold">{cleanupCount}</span>
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                    Remaining Daily Quota: {remainingQuota}
-                                </div>
-                                <Button size="sm" onClick={handleCleanup} disabled={cleaning || remainingQuota <= 0}>
-                                    Run Cleanup
-                                </Button>
-                            </div>
-                        </PopoverContent>
-                    </Popover>
                 </div>
-          </div>
+            )}
 
-          {recentSummary && (
-              <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg relative animate-in fade-in slide-in-from-top-2">
-                  <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 hover:bg-background/80" onClick={() => setRecentSummary(null)}>
-                      <X className="h-4 w-4" />
-                  </Button>
-                  <h3 className="font-semibold text-primary flex items-center gap-2 mb-2">
-                      <Sparkles className="h-4 w-4" /> Recent Email Briefing
-                  </h3>
-                  <div className="text-sm whitespace-pre-wrap leading-relaxed text-muted-foreground">
-                      {recentSummary}
-                  </div>
-              </div>
-          )}
+            <div className="flex flex-col gap-4">
+                <NewsTicker />
+                <div className="flex justify-between items-end mb-2">
+                    <div>
+                        <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                            {greeting}
+                        </h2>
+                        <p className="text-muted-foreground flex items-center gap-2 mt-1">
+                            <Calendar className="h-4 w-4 opacity-50" />
+                            {currentDate ? currentDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : "Loading date..."}
+                            <span className="opacity-30">|</span>
+                            <a href="https://mail.google.com/mail/u/0/" target="_blank" className="hover:underline hover:text-primary transition-colors cursor-pointer">
+                                Inbox: <span className="font-bold">{inboxCount}</span>
+                            </a>
+                            <span className="opacity-30">|</span>
+                            <Button
+                                variant="link"
+                                className="p-0 h-auto text-primary"
+                                onClick={() => handleSummarizeRecent(true)}
+                                disabled={summarizingRecent}
+                            >
+                                {summarizingRecent ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                                Briefing
+                            </Button>
+                        </p>
+                    </div>
 
-          <div className="w-full">
-              <WeatherWidget />
-          </div>
+                    <div className="flex items-center space-x-4">
+                        <StatusIndicator />
+                        <div className="flex items-center space-x-2 text-sm text-muted-foreground hidden md:flex">
+                            <Activity className="h-4 w-4" />
+                            <span>{loading ? "Updating..." : "System Active"}</span>
+                        </div>
+                        {/* Removed Log Button since Indicator links there */}
+                        <Button variant="outline" size="icon" onClick={fetchData}>
+                            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                        </Button>
 
-          <div className="grid gap-4 md:grid-cols-1">
-              <MarketInsightsWidget />
-          </div>
-      </div>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button disabled={cleaning} className="min-w-[140px]">
+                                    {cleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
+                                    {cleaning ? "Cleaning..." : `Clean (${cleanupCount})`}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80">
+                                <div className="grid gap-4">
+                                    <div className="space-y-2">
+                                        <h4 className="font-medium leading-none">Clean Quantity</h4>
+                                        <p className="text-sm text-muted-foreground">
+                                            Adjust how many emails to process at once.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <Slider
+                                            defaultValue={[10]}
+                                            max={Math.min(50, remainingQuota)} // Cap at 50 for safety/timeout reasons per batch, or remaining quota
+                                            min={10}
+                                            step={10}
+                                            value={[cleanupCount]}
+                                            onValueChange={(val) => setCleanupCount(val[0])}
+                                        />
+                                        <span className="w-8 text-sm font-bold">{cleanupCount}</span>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Remaining Daily Quota: {remainingQuota}
+                                    </div>
+                                    <Button size="sm" onClick={handleCleanup} disabled={cleaning || remainingQuota <= 0}>
+                                        Run Cleanup
+                                    </Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                </div>
 
-      <Tabs defaultValue="activity" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Email Overview</TabsTrigger>
-          <TabsTrigger value="activity">Activity Log</TabsTrigger>
-          <TabsTrigger value="rules">Sender Rules</TabsTrigger>
-          <TabsTrigger value="stats">Insights & Stats</TabsTrigger>
-        </TabsList>
+                {recentSummary && (
+                    <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg relative animate-in fade-in slide-in-from-top-2">
+                        <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 hover:bg-background/80" onClick={() => setRecentSummary(null)}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                        <h3 className="font-semibold text-primary flex items-center gap-2 mb-2">
+                            <Sparkles className="h-4 w-4" /> Recent Email Briefing
+                        </h3>
+                        <div className="text-sm whitespace-pre-wrap leading-relaxed text-muted-foreground">
+                            {recentSummary}
+                        </div>
+                    </div>
+                )}
 
-        <TabsContent value="overview" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
-                <Card className="hover:scale-[1.01] transition-transform duration-200 shadow-md hover:shadow-lg border-primary/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Today's Volume</CardTitle>
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{stats?.totalProcessed || 0}</div>
-                    <p className="text-xs text-muted-foreground">Emails processed today</p>
-                </CardContent>
-                </Card>
-                <Card className="hover:scale-[1.01] transition-transform duration-200 shadow-md hover:shadow-lg border-primary/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Spam Filtered</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{stats?.categories?.['Spam'] || 0}</div>
-                    <p className="text-xs text-muted-foreground">Auto-archived</p>
-                </CardContent>
-                </Card>
+                <div className="w-full">
+                    <WeatherWidget />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-1">
+                    <MarketInsightsWidget />
+                </div>
             </div>
 
-            <LabelOverviewWidget />
-        </TabsContent>
+            <Tabs defaultValue="activity" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="overview">Email Overview</TabsTrigger>
+                    <TabsTrigger value="activity">Activity Log</TabsTrigger>
+                    <TabsTrigger value="rules">Sender Rules</TabsTrigger>
+                    <TabsTrigger value="stats">Insights & Stats</TabsTrigger>
+                </TabsList>
 
-        <TabsContent value="activity" className="space-y-4">
-             {/* ... existing activity content ... */}
-             <div className="flex items-center justify-between gap-4">
-                 <div className="flex items-center flex-1 gap-2">
-                     <Search className="h-4 w-4 text-muted-foreground" />
-                     <Input 
-                        placeholder="Search subject or sender..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="max-w-sm"
-                     />
-                 </div>
-                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Categories</SelectItem>
-                        {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                 </Select>
-             </div>
+                <TabsContent value="overview" className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
+                        <Card className="hover:scale-[1.01] transition-transform duration-200 shadow-md hover:shadow-lg border-primary/20">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Today's Volume</CardTitle>
+                                <Mail className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{stats?.totalProcessed || 0}</div>
+                                <p className="text-xs text-muted-foreground">Emails processed today</p>
+                            </CardContent>
+                        </Card>
+                        <Card className="hover:scale-[1.01] transition-transform duration-200 shadow-md hover:shadow-lg border-primary/20">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Spam Filtered</CardTitle>
+                                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{stats?.categories?.['Spam'] || 0}</div>
+                                <p className="text-xs text-muted-foreground">Auto-archived</p>
+                            </CardContent>
+                        </Card>
+                    </div>
 
-             <Card>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Subject</TableHead>
-                                <TableHead>Sender</TableHead>
-                                <TableHead>Category</TableHead>
-                                <TableHead>Urgent?</TableHead>
-                                <TableHead className="text-right">Date & Time</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {logs.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
-                                        No emails found matching your filters.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                            {logs.map((log) => (
-                                <TableRow key={log.id}>
-                                    <TableCell className="font-medium">
-                                        <div className="flex flex-col space-y-1">
-                                            <a 
-                                                href={`https://mail.google.com/mail/u/0/#all/${log.id}`} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="hover:underline flex items-center gap-2 group text-primary"
-                                            >
-                                                {log.subject}
-                                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                            </a>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="max-w-[200px] truncate" title={log.sender}>{log.sender}</TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center space-x-2">
-                                        <Badge variant="secondary" className="gap-1">
-                                            {log.category}
-                                            {log.reasoning && (
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <BrainCircuit className="w-3 h-3 text-muted-foreground hover:text-primary cursor-help" />
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-80 text-sm">
-                                                        <div className="font-semibold mb-1">AI Reasoning:</div>
-                                                        <p className="text-muted-foreground">{log.reasoning}</p>
-                                                    </PopoverContent>
-                                                </Popover>
-                                            )}
-                                        </Badge>
-                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100">
-                                                    <Edit2 className="h-3 w-3" />
-                                                </Button>
-                                            </DialogTrigger>
-                                            <DialogContent>
-                                                <DialogHeader>
-                                                    <DialogTitle>Correct Category</DialogTitle>
-                                                    <DialogDescription>
-                                                        Tell the AI which category this email should have been sorted into.
-                                                    </DialogDescription>
-                                                </DialogHeader>
-                                                <div className="py-4">
-                                                    <div className="text-sm font-medium mb-2">Subject: {log.subject}</div>
-                                                    <div className="text-sm text-muted-foreground mb-4">Current: {log.category}</div>
-                                                    
-                                                    <Select onValueChange={(val) => handleCorrection(log, val)}>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Select correct category" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {EMAIL_CATEGORIES.map((cat) => (
-                                                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
+                    <LabelOverviewWidget />
+                </TabsContent>
+
+                <TabsContent value="activity" className="space-y-4">
+                    {/* ... existing activity content ... */}
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center flex-1 gap-2">
+                            <Search className="h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search subject or sender..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="max-w-sm"
+                            />
+                        </div>
+                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="All">All Categories</SelectItem>
+                                {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <Card>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Subject</TableHead>
+                                        <TableHead>Sender</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead>Urgent?</TableHead>
+                                        <TableHead className="text-right">Date & Time</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {logs.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                                                No emails found matching your filters.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {logs.map((log) => (
+                                        <TableRow key={log.id}>
+                                            <TableCell className="font-medium">
+                                                <div className="flex flex-col space-y-1">
+                                                    <a
+                                                        href={`https://mail.google.com/mail/u/0/#all/${log.id}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="hover:underline flex items-center gap-2 group text-primary"
+                                                    >
+                                                        {log.subject}
+                                                        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    </a>
                                                 </div>
-                                            </DialogContent>
-                                        </Dialog>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center space-x-2">
-                                            {log.isUrgent ? (
-                                                <Badge variant="destructive" className="flex items-center gap-1">
-                                                    <Siren className="h-3 w-3" /> Urgent
-                                                </Badge>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground">Normal</span>
-                                            )}
-                                            
+                                            </TableCell>
+                                            <TableCell className="max-w-[200px] truncate" title={log.sender}>{log.sender}</TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center space-x-2">
+                                                    <Badge variant="secondary" className="gap-1">
+                                                        {log.category}
+                                                        {log.reasoning && (
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <BrainCircuit className="w-3 h-3 text-muted-foreground hover:text-primary cursor-help" />
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-80 text-sm">
+                                                                    <div className="font-semibold mb-1">AI Reasoning:</div>
+                                                                    <p className="text-muted-foreground">{log.reasoning}</p>
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        )}
+                                                    </Badge>
+                                                    <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100">
+                                                                <Edit2 className="h-3 w-3" />
+                                                            </Button>
+                                                        </DialogTrigger>
+                                                        <DialogContent>
+                                                            <DialogHeader>
+                                                                <DialogTitle>Correct Category</DialogTitle>
+                                                                <DialogDescription>
+                                                                    Tell the AI which category this email should have been sorted into.
+                                                                </DialogDescription>
+                                                            </DialogHeader>
+                                                            <div className="py-4">
+                                                                <div className="text-sm font-medium mb-2">Subject: {log.subject}</div>
+                                                                <div className="text-sm text-muted-foreground mb-4">Current: {log.category}</div>
+
+                                                                <Select onValueChange={(val) => handleCorrection(log, val)}>
+                                                                    <SelectTrigger>
+                                                                        <SelectValue placeholder="Select correct category" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {EMAIL_CATEGORIES.map((cat) => (
+                                                                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center space-x-2">
+                                                    {log.isUrgent ? (
+                                                        <Badge variant="destructive" className="flex items-center gap-1">
+                                                            <Siren className="h-3 w-3" /> Urgent
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">Normal</span>
+                                                    )}
+
+                                                    <Dialog>
+                                                        <DialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-30 hover:opacity-100">
+                                                                <Edit2 className="h-3 w-3" />
+                                                            </Button>
+                                                        </DialogTrigger>
+                                                        <DialogContent>
+                                                            <DialogHeader>
+                                                                <DialogTitle>Correct Urgency</DialogTitle>
+                                                                <DialogDescription>
+                                                                    Was this email actually urgent?
+                                                                </DialogDescription>
+                                                            </DialogHeader>
+                                                            <div className="py-4 flex items-center justify-between border rounded-lg p-4">
+                                                                <Label htmlFor="urgent-mode">Mark as Urgent</Label>
+                                                                <Switch
+                                                                    id="urgent-mode"
+                                                                    checked={log.isUrgent || false}
+                                                                    onCheckedChange={(checked) => handleUrgencyCorrection(log, checked)}
+                                                                />
+                                                            </div>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right text-muted-foreground whitespace-nowrap">
+                                                {new Date(log.timestamp._seconds * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                <span className="mx-1 opacity-50">at</span>
+                                                {new Date(log.timestamp._seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="rules" className="space-y-4">
+                    {suggestions.length > 0 && (
+                        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-lg flex items-center gap-2 text-amber-800 dark:text-amber-400">
+                                    <Sparkles className="h-5 w-5" /> AI Suggestions
+                                </CardTitle>
+                                <CardDescription className="text-amber-700/80 dark:text-amber-500">
+                                    The AI noticed these patterns in your inbox. Click "Add" to make them permanent rules.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                    {suggestions.map((s, i) => (
+                                        <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-background rounded-md border shadow-sm">
+                                            <div className="overflow-hidden flex-1 mr-2">
+                                                <div className="font-medium truncate text-sm" title={s.sender}>{s.sender}</div>
+                                                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                                    To: <Badge variant="secondary" className="text-[10px] h-4">{s.category}</Badge>
+                                                </div>
+                                            </div>
+
+                                            {/* Suggestion Edit Dialog */}
                                             <Dialog>
                                                 <DialogTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-30 hover:opacity-100">
-                                                        <Edit2 className="h-3 w-3" />
+                                                    <Button size="sm" variant="outline" onClick={() => openSuggestionEdit(s)}>
+                                                        Review
                                                     </Button>
                                                 </DialogTrigger>
                                                 <DialogContent>
                                                     <DialogHeader>
-                                                        <DialogTitle>Correct Urgency</DialogTitle>
+                                                        <DialogTitle>Add Rule for {s.sender}</DialogTitle>
                                                         <DialogDescription>
-                                                            Was this email actually urgent?
+                                                            Confirm or change the category for this sender.
                                                         </DialogDescription>
                                                     </DialogHeader>
-                                                    <div className="py-4 flex items-center justify-between border rounded-lg p-4">
-                                                        <Label htmlFor="urgent-mode">Mark as Urgent</Label>
-                                                        <Switch 
-                                                            id="urgent-mode"
-                                                            checked={log.isUrgent || false}
-                                                            onCheckedChange={(checked) => handleUrgencyCorrection(log, checked)}
-                                                        />
+                                                    <div className="py-4 space-y-4">
+                                                        <div className="space-y-2">
+                                                            <Label>Category</Label>
+                                                            <Select
+                                                                value={editedSuggestionCategory || s.category}
+                                                                onValueChange={setEditedSuggestionCategory}
+                                                            >
+                                                                <SelectTrigger>
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
                                                     </div>
+                                                    <DialogFooter>
+                                                        <Button onClick={() => handleAddRule(s.sender, editedSuggestionCategory || s.category)}>
+                                                            Confirm Rule
+                                                        </Button>
+                                                    </DialogFooter>
                                                 </DialogContent>
                                             </Dialog>
                                         </div>
-                                    </TableCell>
-                                    <TableCell className="text-right text-muted-foreground whitespace-nowrap">
-                                        {new Date(log.timestamp._seconds * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                                        <span className="mx-1 opacity-50">at</span>
-                                        {new Date(log.timestamp._seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-        </TabsContent>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
-        <TabsContent value="rules" className="space-y-4">
-             {suggestions.length > 0 && (
-                 <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-                     <CardHeader className="pb-2">
-                         <CardTitle className="text-lg flex items-center gap-2 text-amber-800 dark:text-amber-400">
-                             <Sparkles className="h-5 w-5" /> AI Suggestions
-                         </CardTitle>
-                         <CardDescription className="text-amber-700/80 dark:text-amber-500">
-                             The AI noticed these patterns in your inbox. Click "Add" to make them permanent rules.
-                         </CardDescription>
-                     </CardHeader>
-                     <CardContent>
-                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                             {suggestions.map((s, i) => (
-                                 <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-background rounded-md border shadow-sm">
-                                     <div className="overflow-hidden flex-1 mr-2">
-                                         <div className="font-medium truncate text-sm" title={s.sender}>{s.sender}</div>
-                                         <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                             To: <Badge variant="secondary" className="text-[10px] h-4">{s.category}</Badge>
-                                         </div>
-                                     </div>
-                                     
-                                     {/* Suggestion Edit Dialog */}
-                                     <Dialog>
-                                         <DialogTrigger asChild>
-                                             <Button size="sm" variant="outline" onClick={() => openSuggestionEdit(s)}>
-                                                Review
-                                             </Button>
-                                         </DialogTrigger>
-                                         <DialogContent>
-                                             <DialogHeader>
-                                                 <DialogTitle>Add Rule for {s.sender}</DialogTitle>
-                                                 <DialogDescription>
-                                                     Confirm or change the category for this sender.
-                                                 </DialogDescription>
-                                             </DialogHeader>
-                                             <div className="py-4 space-y-4">
-                                                 <div className="space-y-2">
-                                                     <Label>Category</Label>
-                                                     <Select 
-                                                        value={editedSuggestionCategory || s.category} 
-                                                        onValueChange={setEditedSuggestionCategory}
-                                                     >
-                                                        <SelectTrigger>
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                                        </SelectContent>
-                                                     </Select>
-                                                 </div>
-                                             </div>
-                                             <DialogFooter>
-                                                 <Button onClick={() => handleAddRule(s.sender, editedSuggestionCategory || s.category)}>
-                                                     Confirm Rule
-                                                 </Button>
-                                             </DialogFooter>
-                                         </DialogContent>
-                                     </Dialog>
-                                 </div>
-                             ))}
-                         </div>
-                     </CardContent>
-                 </Card>
-             )}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Deterministic Rules</CardTitle>
+                            <CardDescription>
+                                Force specific senders to always go to a certain category, bypassing AI classification.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-end gap-4 border-b pb-4">
+                                <div className="space-y-2 flex-1">
+                                    <label className="text-sm font-medium">Sender (contains text)</label>
+                                    {/* FIXED: Correct state setter */}
+                                    <Input
+                                        placeholder="e.g. @bankofamerica.com"
+                                        value={newRuleSender}
+                                        onChange={(e) => setNewRuleSender(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2 w-[200px]">
+                                    <label className="text-sm font-medium">Category</label>
+                                    <Select value={newRuleCategory} onValueChange={setNewRuleCategory}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Button onClick={() => handleAddRule()} disabled={isAddingRule || !newRuleSender}>
+                                    <Plus className="mr-2 h-4 w-4" /> Add Rule
+                                </Button>
+                            </div>
 
-             <Card>
-                 <CardHeader>
-                     <CardTitle>Deterministic Rules</CardTitle>
-                     <CardDescription>
-                         Force specific senders to always go to a certain category, bypassing AI classification.
-                     </CardDescription>
-                 </CardHeader>
-                 <CardContent className="space-y-4">
-                     <div className="flex items-end gap-4 border-b pb-4">
-                         <div className="space-y-2 flex-1">
-                             <label className="text-sm font-medium">Sender (contains text)</label>
-                             {/* FIXED: Correct state setter */}
-                             <Input 
-                                placeholder="e.g. @bankofamerica.com" 
-                                value={newRuleSender}
-                                onChange={(e) => setNewRuleSender(e.target.value)} 
-                             />
-                         </div>
-                         <div className="space-y-2 w-[200px]">
-                             <label className="text-sm font-medium">Category</label>
-                             <Select value={newRuleCategory} onValueChange={setNewRuleCategory}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                </SelectContent>
-                             </Select>
-                         </div>
-                         <Button onClick={() => handleAddRule()} disabled={isAddingRule || !newRuleSender}>
-                             <Plus className="mr-2 h-4 w-4" /> Add Rule
-                         </Button>
-                     </div>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Sender Match</TableHead>
+                                        <TableHead>Target Category</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {rules.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={3} className="text-center text-muted-foreground">No rules defined yet.</TableCell>
+                                        </TableRow>
+                                    )}
+                                    {rules.map((rule) => (
+                                        <TableRow key={rule.id}>
+                                            <TableCell className="font-mono">{rule.sender}</TableCell>
+                                            <TableCell><Badge variant="outline">{rule.category}</Badge></TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" onClick={() => handleDeleteRule(rule.id)}>
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
-                     <Table>
-                         <TableHeader>
-                             <TableRow>
-                                 <TableHead>Sender Match</TableHead>
-                                 <TableHead>Target Category</TableHead>
-                                 <TableHead className="text-right">Actions</TableHead>
-                             </TableRow>
-                         </TableHeader>
-                         <TableBody>
-                             {rules.length === 0 && (
-                                 <TableRow>
-                                     <TableCell colSpan={3} className="text-center text-muted-foreground">No rules defined yet.</TableCell>
-                                 </TableRow>
-                             )}
-                             {rules.map((rule) => (
-                                 <TableRow key={rule.id}>
-                                     <TableCell className="font-mono">{rule.sender}</TableCell>
-                                     <TableCell><Badge variant="outline">{rule.category}</Badge></TableCell>
-                                     <TableCell className="text-right">
-                                         <Button variant="ghost" size="icon" onClick={() => handleDeleteRule(rule.id)}>
-                                             <Trash2 className="h-4 w-4 text-destructive" />
-                                         </Button>
-                                     </TableCell>
-                                 </TableRow>
-                             ))}
-                         </TableBody>
-                     </Table>
-                 </CardContent>
-             </Card>
-        </TabsContent>
+                <TabsContent value="stats" className="space-y-4">
+                    <StatsWidget />
+                </TabsContent>
+            </Tabs>
 
-        <TabsContent value="stats" className="space-y-4">
-            <StatsWidget />
-        </TabsContent>
-      </Tabs>
-
-      <div className="text-center text-xs text-muted-foreground opacity-60 mt-8 pb-4">
-          Last pushed update: {process.env.NEXT_PUBLIC_BUILD_TIME || "Unknown"}
-          {process.env.NEXT_PUBLIC_COMMIT_HASH ? ` (${process.env.NEXT_PUBLIC_COMMIT_HASH})` : ""}
-      </div>
-    </div>
-  );
+            <div className="text-center text-xs text-muted-foreground opacity-60 mt-8 pb-4">
+                Last pushed update: {process.env.NEXT_PUBLIC_BUILD_TIME || "Unknown"}
+                {process.env.NEXT_PUBLIC_COMMIT_HASH ? ` (${process.env.NEXT_PUBLIC_COMMIT_HASH})` : ""}
+            </div>
+        </div>
+    );
 }
