@@ -59,6 +59,7 @@
 - **`email_rules`**: Hardcoded routing rules (bypasses AI).
 - **`store_notes`**: Hardware store shift handoff stickies.
 - **`settings`**: Master configs (e.g., `google_auth` stores UI-renewed refresh tokens).
+- **`ai_summaries`**: Historical records of AI summaries, including the prompt sent and emails processed.
 
 ## Debugging Playbook
 
@@ -77,3 +78,4 @@
 - **Label Overview Widget** (`src/components/label-overview-widget.tsx`): Replaced static overview with dynamic accordion displaying real-time label unread counts and recent subject lines.
 - **News Ticker**: Replaced static news widget with scrolling ticker (`src/components/news-ticker.tsx`).
 - **Gmail Watch Auto-Renewal**: Added automatic renewal flow via dashboard to prevent real-time sync expiration, fixing OAuth redirect URI mismatches for production vs local.
+- **AI Summary History & Deduplication**: Added a new `/ai-history` page tracking past AI summaries along with the exact prompts sent. Upgraded the `/api/summarize-recent` endpoint to cross-reference previous summaries to prevent duplicate processing of identical emails.

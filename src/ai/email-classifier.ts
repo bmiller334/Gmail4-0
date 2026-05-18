@@ -238,13 +238,16 @@ export const summarizeRecentEmails = ai.defineFlow(
         snippet: z.string().optional(),
       })),
     }),
-    outputSchema: z.string(),
+    outputSchema: z.object({
+      text: z.string(),
+      prompt: z.string()
+    }),
   },
   async (input) => {
     const { emails } = input;
     
     if (emails.length === 0) {
-        return "No recent emails to summarize.";
+        return { text: "No recent emails to summarize.", prompt: "N/A" };
     }
 
     const emailText = emails.map(e => `Category: ${e.category}\nFrom: ${e.sender}\nSubject: ${e.subject}\nSnippet: ${e.snippet || "N/A"}\n---`).join("\n");
@@ -268,7 +271,7 @@ ${emailText}
           }
         });
 
-        return text;
+        return { text, prompt };
     } catch (error: any) {
         console.error("[AI] Recent Summarization Error:", error.message);
         throw new Error("Failed to generate recent summary: " + error.message);

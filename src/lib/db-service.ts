@@ -27,6 +27,7 @@ export const DOC_CATEGORIES = 'email_categories';
 export const DOC_AUTH = 'google_auth'; // New document for Auth
 export const DOC_WATCH = 'watch_status'; // New document for Watch Status
 export const DOC_RECENT_SUMMARY_CACHE = 'recent_summary_cache';
+export const COLLECTION_AI_SUMMARIES = 'ai_summaries';
 
 // ... Types ...
 export type EmailLog = {
@@ -38,6 +39,15 @@ export type EmailLog = {
     isUrgent: boolean;
     snippet?: string;
     reasoning?: string;
+};
+
+export type AiSummary = {
+    id: string;
+    promptType: string;
+    promptUsed: string;
+    emailsIncluded: string[];
+    summaryResult: string;
+    timestamp: Date;
 };
 
 export type EmailCorrection = {
@@ -411,6 +421,42 @@ export async function setRecentSummaryCache(summary: string, lastLogId: string) 
         });
     } catch (error) {
         console.error("Error saving summary cache:", error);
+    }
+}
+
+// --- AI Summaries ---
+
+export async function saveAiSummary(summary: AiSummary) {
+    try {
+        const docRef = db.collection(COLLECTION_AI_SUMMARIES).doc(summary.id);
+        await docRef.set(summary);
+    } catch (error) {
+        console.error("Error saving AI summary:", error);
+    }
+}
+
+export async function getAiSummaries(limit = 50) {
+    try {
+        const snapshot = await db.collection(COLLECTION_AI_SUMMARIES).orderBy('timestamp', 'desc').limit(limit).get();
+        return snapshot.docs.map(doc => doc.data() as AiSummary);
+    } catch (error) {
+        console.error("Error fetching AI summaries:", error);
+        return [];
+    }
+}
+
+export async function getLastAiSummary(promptType: string) {
+    try {
+        const snapshot = await db.collection(COLLECTION_AI_SUMMARIES)
+            .where('promptType', '==', promptType)
+            .orderBy('timestamp', 'desc')
+            .limit(1)
+            .get();
+        if (snapshot.empty) return null;
+        return snapshot.docs[0].data() as AiSummary;
+    } catch (error) {
+        console.error("Error fetching last AI summary:", error);
+        return null;
     }
 }
 

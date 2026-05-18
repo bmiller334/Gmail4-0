@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRecentLogs, getRecentSummaryCache, setRecentSummaryCache } from "@/lib/db-service";
+import { getRecentLogs, getRecentSummaryCache, setRecentSummaryCache, getLastAiSummary, saveAiSummary } from "@/lib/db-service";
 import { summarizeRecentEmails } from "@/ai/email-classifier";
 import { getGmailClient } from "@/lib/gmail-service";
 
@@ -23,10 +23,19 @@ export async function GET() {
             return NextResponse.json({ summary: cache.summary });
         }
 
+        const lastSummary = await getLastAiSummary('recent_emails');
+        const emailsIncludedInLast = new Set(lastSummary?.emailsIncluded || []);
+        
+        const newLogs = logs.filter(log => !emailsIncludedInLast.has(log.id));
+
+        if (newLogs.length === 0) {
+            return NextResponse.json({ summary: "No changes since the last update. Check out the [previous summary](/ai-history)." });
+        }
+
         const gmail = await getGmailClient();
         
         console.log("Checking read/unread status for recent emails...");
-        const checkPromises = logs.map(async (log) => {
+        const checkPromises = newLogs.map(async (log) => {
             try {
                 const msg = await gmail.users.messages.get({
                     userId: 'me',
@@ -46,7 +55,7 @@ export async function GET() {
         const unreadLogs = results.filter(Boolean) as typeof logs;
 
         if (unreadLogs.length === 0) {
-             const summary = "You are all caught up! There are no unread recent emails that require your attention.";
+             const summary = "No changes since the last update. Check out the [previous summary](/ai-history).";
              await setRecentSummaryCache(summary, latestLogId);
              return NextResponse.json({ summary });
         }
@@ -60,7 +69,17 @@ export async function GET() {
         }));
 
         console.log("Generating new recent summary with Gemini...");
-        const summary = await summarizeRecentEmails({ emails });
+        const { text: summary, prompt } = await summarizeRecentEmails({ emails });
+
+        const summaryId = Date.now().toString() + "-" + Math.random().toString(36).substring(2, 9);
+        await saveAiSummary({
+            id: summaryId,
+            promptType: 'recent_emails',
+            promptUsed: prompt,
+            emailsIncluded: unreadLogs.map(l => l.id),
+            summaryResult: summary,
+            timestamp: new Date()
+        });
 
         // Update cache
         await setRecentSummaryCache(summary, latestLogId);
