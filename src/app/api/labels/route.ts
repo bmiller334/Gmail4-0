@@ -29,13 +29,19 @@ export async function GET(req: Request) {
         if (category) {
             // Return 5 recent unread emails for this category
             let labelId = labelCache[category.toLowerCase()];
-            const query = labelId ? `label:${labelId} is:unread` : `label:"${category}" is:unread`;
             
-            const res = await gmail.users.messages.list({
+            const reqOpts: any = {
                 userId: 'me',
-                q: query,
                 maxResults: 5
-            });
+            };
+
+            if (labelId) {
+                reqOpts.labelIds = [labelId, 'UNREAD'];
+            } else {
+                reqOpts.q = `label:"${category}" is:unread`;
+            }
+
+            const res = await gmail.users.messages.list(reqOpts);
 
             const messages = [];
             if (res.data.messages && res.data.messages.length > 0) {
@@ -49,8 +55,8 @@ export async function GET(req: Request) {
                     });
                     
                     const headers = details.data.payload?.headers;
-                    const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
-                    const sender = headers?.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
+                    const subject = headers?.find((h: any) => h.name.toLowerCase() === 'subject')?.value || 'No Subject';
+                    const sender = headers?.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender';
                     
                     messages.push({ id: m.id, subject, sender });
                 }

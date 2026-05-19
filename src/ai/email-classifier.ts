@@ -203,8 +203,8 @@ export const summarizeCategoryEmails = ai.defineFlow(
 
     const prompt = `
 You are a helpful assistant. Please provide a concise, high-level overview of the following unread emails in the "${category}" category.
+Use bullet points or a Markdown table to summarize the emails. Keep it very concise and less wordy.
 Do not summarize each email individually unless it's very important. Group them by themes or senders if possible.
-Keep the summary to 2-3 paragraphs maximum.
 
 Emails:
 ${emailText}
@@ -254,9 +254,10 @@ export const summarizeRecentEmails = ai.defineFlow(
 
     const prompt = `
 You are a helpful assistant. Please provide a concise, high-level briefing of the recently organized emails.
-Emphasize emails that seem more important (e.g., ones categorized into "Action Needed", "Finance", "Updates", "Urgent", etc.).
-Do not go into detail on "Marketing", "Social", "Promotions", etc., but maybe provide a quick mention that there are emails from certain brands or categories if relevant.
-Keep the summary informative, concise, and structured (around 2-3 paragraphs or bullet points).
+Use a Markdown table to quickly explain what emails might be important (e.g., ones categorized into "Action Needed", "Finance", "Updates", "Urgent", etc.).
+The table should have columns such as "Category", "Sender", "Subject", and "Importance / Key Takeaway".
+Do not go into detail on "Marketing", "Social", "Promotions", etc., but provide a quick concise bullet point list of those at the bottom if relevant.
+Keep the overall summary extremely concise, visually structured, and less wordy.
 
 Recent Emails:
 ${emailText}

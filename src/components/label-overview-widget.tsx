@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { EMAIL_CATEGORIES } from "@/lib/categories";
-import { Loader2, ExternalLink, Inbox } from "lucide-react";
+import { Loader2, ExternalLink, Inbox, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +56,35 @@ export function LabelOverviewWidget() {
             setLoadingMessages(prev => ({ ...prev, [category]: false }));
         }
     }, [messagesCache, loadingMessages, toast]);
+
+    const handleMarkAsRead = async (e: React.MouseEvent, msgId: string, category: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        try {
+            const res = await fetch('/api/messages/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: msgId })
+            });
+            
+            if (res.ok) {
+                toast({ title: "Message marked as read" });
+                setMessagesCache(prev => ({
+                    ...prev,
+                    [category]: prev[category] ? prev[category].filter(m => m.id !== msgId) : []
+                }));
+                setUnreadCounts(prev => ({
+                    ...prev,
+                    [category]: Math.max(0, (prev[category] || 1) - 1)
+                }));
+            } else {
+                toast({ variant: "destructive", title: "Error", description: "Failed to mark message as read." });
+            }
+        } catch (err) {
+            toast({ variant: "destructive", title: "Error", description: "Failed to communicate with server." });
+        }
+    };
 
     const maxCount = Math.max(...Object.values(unreadCounts), 1);
 
@@ -130,13 +159,24 @@ export function LabelOverviewWidget() {
                                                                         href={`https://mail.google.com/mail/u/0/#all/${msg.id}`}
                                                                         target="_blank"
                                                                         rel="noopener noreferrer"
-                                                                        className="group flex flex-col gap-1.5 rounded-lg bg-background p-3 hover:bg-primary/5 hover:border-primary/30 transition-all border shadow-sm hover:shadow"
+                                                                        className="group flex flex-col gap-1.5 rounded-lg bg-background p-3 hover:bg-primary/5 hover:border-primary/30 transition-all border shadow-sm hover:shadow relative"
                                                                     >
                                                                         <div className="flex items-start justify-between gap-4">
-                                                                            <span className="text-sm font-medium line-clamp-1 text-foreground group-hover:text-primary transition-colors">
+                                                                            <span className="text-sm font-medium line-clamp-1 text-foreground group-hover:text-primary transition-colors pr-6">
                                                                                 {msg.subject}
                                                                             </span>
-                                                                            <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-primary mt-0.5" />
+                                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                                <Button 
+                                                                                    variant="ghost" 
+                                                                                    size="icon" 
+                                                                                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
+                                                                                    onClick={(e) => handleMarkAsRead(e, msg.id, category)}
+                                                                                    title="Mark as read"
+                                                                                >
+                                                                                    <CheckCircle2 className="h-4 w-4" />
+                                                                                </Button>
+                                                                                <ExternalLink className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary mt-0.5" />
+                                                                            </div>
                                                                         </div>
                                                                         <span className="text-xs text-muted-foreground truncate font-mono bg-muted/50 px-1.5 py-0.5 rounded w-fit max-w-full">
                                                                             {msg.sender}

@@ -62,6 +62,7 @@ import { StatusIndicator } from "./status-indicator";
 import { NewsTicker } from "./news-ticker";
 import { LabelOverviewWidget } from "./label-overview-widget";
 import { StatsWidget } from "./stats-widget";
+import { YoutubeWidget } from "./youtube-widget";
 // Types
 type DashboardStats = {
     totalProcessed: number;
@@ -558,12 +559,13 @@ export default function Dashboard() {
                     <WeatherWidget />
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-1">
+                <div className="grid gap-4 md:grid-cols-2">
                     <MarketInsightsWidget />
+                    <YoutubeWidget />
                 </div>
             </div>
 
-            <Tabs defaultValue="activity" className="space-y-4">
+            <Tabs defaultValue="overview" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="overview">Email Overview</TabsTrigger>
                     <TabsTrigger value="activity">Activity Log</TabsTrigger>

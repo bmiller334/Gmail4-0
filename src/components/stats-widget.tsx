@@ -22,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Bar, BarChart, Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ShieldAlert, TrendingUp, Mail, Plus, Trash2, Loader2, BarChart3, ArrowUpRight } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { EMAIL_CATEGORIES } from "@/lib/categories";
 
 type HistoricalStat = {
@@ -42,6 +44,7 @@ export function StatsWidget() {
     const [spammers, setSpammers] = useState<Spammer[]>([]);
     const [loading, setLoading] = useState(true);
     const [addingRuleFor, setAddingRuleFor] = useState<string | null>(null);
+    const [showAllLabels, setShowAllLabels] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -75,6 +78,7 @@ export function StatsWidget() {
             if (res.ok) {
                 toast({ title: "Rule Added", description: `Future emails from ${sender} will go to ${targetCategory}.` });
                 // Optimistically remove from spammers or just refresh
+                setSpammers(prev => prev.filter(s => s.sender !== sender));
                 fetchData();
             }
         } catch (err) {
@@ -87,13 +91,16 @@ export function StatsWidget() {
     const totalProcessed = stats.reduce((acc, curr) => acc + curr.totalProcessed, 0);
     const avgPerDay = stats.length > 0 ? Math.round(totalProcessed / stats.length) : 0;
 
-    const chartData = stats.map(s => ({
-        ...s,
-        dateFormatted: new Date(s.date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' }),
-        Spam: s.categories['Spam'] || 0,
-        Marketing: s.categories['Marketing'] || 0,
-        Important: s.categories['Important'] || 0,
-    }));
+    const chartData = stats.map(s => {
+        const data: any = {
+            ...s,
+            dateFormatted: new Date(s.date + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' }),
+        };
+        EMAIL_CATEGORIES.forEach(cat => {
+            data[cat] = s.categories[cat] || 0;
+        });
+        return data;
+    });
 
     return (
         <div className="space-y-6">
@@ -154,10 +161,18 @@ export function StatsWidget() {
 
             <Card className="border-primary/20 shadow-md">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5" /> Email Volume Trends
-                    </CardTitle>
-                    <CardDescription>Processed emails over the selected time range.</CardDescription>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="flex items-center gap-2">
+                                <TrendingUp className="h-5 w-5" /> Email Volume Trends
+                            </CardTitle>
+                            <CardDescription>Processed emails over the selected time range.</CardDescription>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Switch id="show-all-labels" checked={showAllLabels} onCheckedChange={setShowAllLabels} />
+                            <Label htmlFor="show-all-labels" className="cursor-pointer">Show all labels</Label>
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {loading ? (
@@ -177,8 +192,15 @@ export function StatsWidget() {
                                     />
                                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
                                     <Bar dataKey="totalProcessed" name="Total Emails" fill="hsl(var(--primary) / 0.8)" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                                    <Bar dataKey="Marketing" name="Marketing" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={40} stackId="a" />
-                                    <Bar dataKey="Spam" name="Spam" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={40} stackId="a" />
+                                    {showAllLabels ? (
+                                        EMAIL_CATEGORIES.map((cat, i) => (
+                                            <Bar key={cat} dataKey={cat} name={cat} fill={`hsl(${(i * 360) / EMAIL_CATEGORIES.length}, 70%, 50%)`} radius={[4, 4, 0, 0]} maxBarSize={40} stackId="a" />
+                                        ))
+                                    ) : (
+                                        <>
+                                            <Bar dataKey="Marketing" name="Marketing" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={40} stackId="a" />
+                                        </>
+                                    )}
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -199,6 +221,30 @@ export function StatsWidget() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
+                    {!loading && spammers.length > 0 && (
+                        <div className="p-6 bg-destructive/5 border-b border-destructive/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div>
+                                <h3 className="text-xs font-bold text-destructive uppercase tracking-wider mb-1 flex items-center gap-2">
+                                    <ShieldAlert className="h-3 w-3" /> #1 Top Sender
+                                </h3>
+                                <div className="text-xl font-bold truncate max-w-md" title={spammers[0].sender}>
+                                    {spammers[0].sender}
+                                </div>
+                                <div className="text-sm text-muted-foreground mt-1">
+                                    Accountable for <span className="font-semibold text-foreground">{spammers[0].count}</span> recent emails ({spammers[0].category})
+                                </div>
+                            </div>
+                            <Button 
+                                variant="destructive" 
+                                onClick={() => handleAddRule(spammers[0].sender, 'Spam')}
+                                disabled={addingRuleFor === spammers[0].sender}
+                                className="shrink-0 shadow-sm"
+                            >
+                                {addingRuleFor === spammers[0].sender ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                                Ban Sender
+                            </Button>
+                        </div>
+                    )}
                     <Table>
                         <TableHeader className="bg-muted/50">
                             <TableRow>

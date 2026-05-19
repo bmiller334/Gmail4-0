@@ -518,7 +518,11 @@ export async function getTopSpammers(limit: number = 20) {
             senderCategories[s] = log.category; // track the most recent category
         });
 
+        const existingRules = await getSenderRules();
+        const existingSenders = new Set(existingRules.map(r => r.sender.toLowerCase()));
+
         const sortedSenders = Object.entries(senderCounts)
+            .filter(([sender]) => !existingSenders.has(sender))
             .map(([sender, count]) => ({ sender, count, category: senderCategories[sender] }))
             .sort((a, b) => b.count - a.count)
             .slice(0, limit);
