@@ -21,12 +21,7 @@ steps:
       - 'us-central1'
       - '--platform'
       - 'managed'
-      - '--allow-unauthenticated' # Required for Pub/Sub push subscription if not using Auth token
+      - '--allow-unauthenticated'
 
-images:
-  - 'gcr.io/$PROJECT_ID/nextn-email-sorter:$SHORT_SHA'
-  - 'gcr.io/$PROJECT_ID/nextn-email-sorter:latest'
-
-# ADD THIS BLOCK to satisfy the service account logging requirement
 options:
   logging: CLOUD_LOGGING_ONLY
