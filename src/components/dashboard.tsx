@@ -489,6 +489,11 @@ export default function Dashboard() {
                                 {summarizingRecent ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
                                 Briefing
                             </Button>
+                            <span className="opacity-30">|</span>
+                            <Link href="/ai-history" className="hover:underline hover:text-primary transition-colors cursor-pointer flex items-center text-sm font-medium text-muted-foreground hover:text-foreground">
+                                <BrainCircuit className="h-4 w-4 mr-1" />
+                                History
+                            </Link>
                         </p>
                     </div>
 

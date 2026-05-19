@@ -1,7 +1,7 @@
 import { z } from "genkit";
 import { ai } from "./genkit"; 
 import { EMAIL_CATEGORIES, EmailCategory } from "@/lib/categories";
-import { getCorrections, getUrgencyCorrections } from "@/lib/db-service";
+import { getCorrections, getUrgencyCorrections, saveAiSummary } from "@/lib/db-service";
 import { getUserLabels } from "@/lib/gmail-service";
 
 const ClassificationSchema = z.object({
@@ -146,6 +146,16 @@ Snippet: ${snippet}
                  console.warn(`[AI] Mismatch! Model said "${rawCat}", mapped to "Manual Sort". Check matchCategory logic.`);
             }
 
+            // Log prompt and response to AI history
+            await saveAiSummary({
+                id: `classify_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                promptType: 'Classification',
+                promptUsed: prompt,
+                emailsIncluded: [subject],
+                summaryResult: `Category: ${finalCategory}\nUrgent: ${!!output.isUrgent}\nReasoning: ${output.reasoning || "None"}`,
+                timestamp: new Date()
+            }).catch(err => console.error("Failed to log classification history:", err));
+
             return {
               category: finalCategory,
               reasoning: output.reasoning || "No reasoning provided.",
@@ -218,6 +228,16 @@ ${emailText}
             maxOutputTokens: 4096, 
           }
         });
+
+        // Log prompt and response to AI history
+        await saveAiSummary({
+            id: `cat_summary_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            promptType: `Category Summary: ${category}`,
+            promptUsed: prompt,
+            emailsIncluded: emails.map(e => e.subject),
+            summaryResult: text,
+            timestamp: new Date()
+        }).catch(err => console.error("Failed to log category summary history:", err));
 
         return text;
     } catch (error: any) {

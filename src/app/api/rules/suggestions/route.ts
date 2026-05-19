@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { findSenderPatterns } from '@/lib/db-service';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     try {
         // Find senders with at least 3 occurrences and 100% consistency

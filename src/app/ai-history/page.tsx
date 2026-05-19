@@ -2,12 +2,12 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Terminal } from "lucide-react";
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 type AiSummary = {
     id: string;
@@ -48,73 +48,78 @@ function AiHistoryContent() {
                 <h1 className="text-3xl font-bold tracking-tight">AI Summary History</h1>
             </div>
 
-            <Card className="bg-slate-900 border-slate-800 shadow-xl">
-                <CardHeader>
-                    <CardTitle>Historical Summaries</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="flex justify-center py-20">
+            <div className="mb-8">
+                {loading ? (
+                    <Card className="bg-slate-900 border-slate-800 shadow-xl">
+                        <CardContent className="flex justify-center py-20">
                             <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-                        </div>
-                    ) : summaries.length === 0 ? (
-                        <div className="text-center py-20 text-slate-400 border border-dashed border-slate-800 rounded-lg">
+                        </CardContent>
+                    </Card>
+                ) : summaries.length === 0 ? (
+                    <Card className="bg-slate-900 border-slate-800 shadow-xl">
+                        <CardContent className="text-center py-20 text-slate-400 border border-dashed border-slate-800 rounded-lg m-6">
                             No AI summaries found in history. Summaries will appear here as they are generated.
-                        </div>
-                    ) : (
-                        <div className="rounded-md border border-slate-800 bg-slate-950/50">
-                            <ScrollArea className="h-[700px]">
-                                <Table>
-                                    <TableHeader className="bg-slate-900 sticky top-0 z-10">
-                                        <TableRow className="border-slate-800 hover:bg-slate-900">
-                                            <TableHead className="w-[180px]">Date</TableHead>
-                                            <TableHead className="w-[120px]">Type</TableHead>
-                                            <TableHead className="w-[150px]">Emails Included</TableHead>
-                                            <TableHead className="w-[40%] min-w-[300px]">Prompt Sent to Gemini</TableHead>
-                                            <TableHead className="w-[40%] min-w-[300px]">Result / Summary</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {summaries.map((summary) => {
-                                            const dateObj = summary.timestamp?._seconds 
-                                                ? new Date(summary.timestamp._seconds * 1000) 
-                                                : new Date(summary.timestamp);
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="flex flex-col gap-6">
+                        {summaries.map((summary) => {
+                            const dateObj = summary.timestamp?._seconds 
+                                ? new Date(summary.timestamp._seconds * 1000) 
+                                : new Date(summary.timestamp);
 
-                                            return (
-                                                <TableRow key={summary.id} className="border-slate-800 hover:bg-slate-800/50 transition-colors">
-                                                    <TableCell className="align-top whitespace-nowrap text-xs text-slate-400">
-                                                        {dateObj.toLocaleString()}
-                                                    </TableCell>
-                                                    <TableCell className="align-top">
-                                                        <Badge variant="outline" className="text-blue-400 border-blue-400/30 bg-blue-400/10 whitespace-nowrap">
-                                                            {summary.promptType === 'recent_emails' ? 'Recent Emails' : summary.promptType}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="align-top">
-                                                        <Badge variant="secondary" className="bg-slate-800 text-slate-300 border-slate-700">
-                                                            {summary.emailsIncluded?.length || 0} items
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="align-top">
-                                                        <div className="max-h-[200px] overflow-y-auto whitespace-pre-wrap text-[11px] font-mono text-slate-400 bg-slate-950 p-3 rounded border border-slate-800 custom-scrollbar">
-                                                            {summary.promptUsed || 'N/A'}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="align-top">
-                                                        <div className="max-h-[200px] overflow-y-auto whitespace-pre-wrap text-sm text-slate-300 bg-slate-950/30 p-3 rounded custom-scrollbar">
-                                                            {summary.summaryResult}
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            </ScrollArea>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                            return (
+                                <Card key={summary.id} className="bg-slate-900 border-slate-800 shadow-xl transition-all duration-200 hover:border-slate-700">
+                                    <CardHeader className="pb-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-semibold text-slate-200 text-lg">
+                                                    {dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                                </span>
+                                                <span className="text-sm text-slate-500 font-mono">
+                                                    {dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="outline" className="text-blue-400 border-blue-400/30 bg-blue-400/10">
+                                                    {summary.promptType === 'recent_emails' ? 'Recent Emails' : summary.promptType}
+                                                </Badge>
+                                                <Badge variant="secondary" className="bg-slate-800 text-slate-300 border-slate-700">
+                                                    {summary.emailsIncluded?.length || 0} emails included
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                        
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="outline" size="sm" className="text-xs bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200">
+                                                    <Terminal className="w-3 h-3 mr-2" />
+                                                    View Prompt
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col bg-slate-950 border-slate-800">
+                                                <DialogHeader>
+                                                    <DialogTitle className="text-slate-200">Prompt Sent to Gemini</DialogTitle>
+                                                </DialogHeader>
+                                                <ScrollArea className="flex-1 mt-4 border border-slate-800 rounded-md p-4 bg-slate-900">
+                                                    <pre className="text-xs font-mono text-slate-400 whitespace-pre-wrap">
+                                                        {summary.promptUsed || 'N/A'}
+                                                    </pre>
+                                                </ScrollArea>
+                                            </DialogContent>
+                                        </Dialog>
+                                    </CardHeader>
+                                    <CardContent className="pt-6">
+                                        <div className="whitespace-pre-wrap text-[15px] text-slate-300 leading-relaxed custom-scrollbar">
+                                            {summary.summaryResult}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

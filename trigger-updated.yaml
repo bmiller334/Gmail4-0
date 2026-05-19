@@ -1,0 +1,26 @@
+filename: cloudbuild.yaml
+createTime: '2026-04-14T05:48:56.757091718Z'
+description: Build and deploy to Cloud Run service nextn-email-sorter on push to "^main$"
+github:
+  name: Gmail4-0
+  owner: bmiller334
+  push:
+    branch: ^main$
+id: 064b6f65-c326-4f66-81ef-fe7ba5e6e13d
+includeBuildLogs: INCLUDE_BUILD_LOGS_WITH_STATUS
+name: rmgpgab-nextn-email-sorter-us-central1-bmiller334-Gmail4-0--wxg
+resourceName: projects/gmail4-0/locations/global/triggers/064b6f65-c326-4f66-81ef-fe7ba5e6e13d
+serviceAccount: projects/gmail4-0/serviceAccounts/358514770474-compute@developer.gserviceaccount.com
+substitutions:
+  REPO_NAME: gmail4-0
+  _AR_HOSTNAME: us-central1-docker.pkg.dev
+  _AR_PROJECT_ID: gmail4-0
+  _AR_REPOSITORY: cloud-run-source-deploy
+  _DEPLOY_REGION: us-central1
+  _PLATFORM: managed
+  _SERVICE_NAME: nextn-email-sorter
+  _TRIGGER_ID: 064b6f65-c326-4f66-81ef-fe7ba5e6e13d
+tags:
+- gcp-cloud-build-deploy-cloud-run
+- gcp-cloud-build-deploy-cloud-run-managed
+- nextn-email-sorter
