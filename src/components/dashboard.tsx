@@ -57,6 +57,7 @@ import Link from "next/link";
 import { Slider } from "@/components/ui/slider";
 
 import { WeatherWidget } from "./weather-widget";
+import { ThermostatWidget } from "./thermostat-widget";
 import { MarketInsightsWidget } from "./market-insights-widget";
 import { StatusIndicator } from "./status-indicator";
 import { NewsTicker } from "./news-ticker";
@@ -519,8 +520,9 @@ export default function Dashboard() {
                     <MindPalace />
                 </div>
 
-                <div className="w-full">
+                <div className="grid gap-4 md:grid-cols-2">
                     <WeatherWidget />
+                    <ThermostatWidget />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
