@@ -66,6 +66,7 @@ import { DailyBriefingWidget } from "./daily-briefing-widget";
 import { FinanceTrackerWidget } from "./finance-tracker-widget";
 import { ReadLaterWidget } from "./read-later-widget";
 import { MediaWidget } from "./media-widget";
+import { MindPalace } from "./mind-palace";
 // Types
 type DashboardStats = {
     totalProcessed: number;
@@ -512,6 +513,10 @@ export default function Dashboard() {
 
                 <div className="w-full">
                     <DailyBriefingWidget />
+                </div>
+
+                <div className="w-full">
+                    <MindPalace />
                 </div>
 
                 <div className="w-full">

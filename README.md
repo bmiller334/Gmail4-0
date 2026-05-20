@@ -19,6 +19,7 @@
    - **Wealth Tracker**: `finance-tracker-widget.tsx` (Google Sheets + Recharts personal wealth tracker).
    - **Read Later Queue**: `read-later-widget.tsx` (AI-sorted bookmark list with Gmail archive check-off).
    - **Media Player**: `media-widget.tsx` (YouTube Music embeds, SiriusXM presets, and Audible tracker).
+   - **Mind Palace**: `mind-palace.tsx` (semantic personal search bar Q&A across inbox history).
    - **Label Overview & Analytics**: accordion showing unread labels & subject expansion, and `stats-widget.tsx` (trends).
    - **Atmospheric UI**: Live weather-dependent theme backgrounds via `weather-background.tsx` and RSS ticker.
 5. **Rate Limiting**: AI calls capped at 1300/day. Batch cleanup (`/api/cleanup`) capped at 50 emails per request.
@@ -62,6 +63,7 @@
 | `src/components/finance-tracker-widget.tsx` | Recharts wealth visualizer pulling dynamically from Google Sheets. |
 | `src/components/read-later-widget.tsx` | Bookmarks queue syncing with Gmail API to archive checked items. |
 | `src/components/media-widget.tsx` | Aesthetic media player supporting YouTube Music, SiriusXM presets, and Audible tracking. |
+| `src/components/mind-palace.tsx` | Sleek personal semantic search widget querying digital archives. |
 | `src/app/ai-history/page.tsx` | Card-based AI History logs displaying prompt details and classifications. |
 | `cloudbuild.yaml` | Build pipeline config utilizing Kaniko layer caching. |
 
