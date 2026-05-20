@@ -47,9 +47,9 @@ ${formattedLogs}
 
         // 4. Generate response using Genkit singleton + Gemini 2.5 Flash
         const { text } = await ai.generate({
+            system: systemPrompt,
             prompt: `User Question: "${query}"\n\nSearch and answer:`,
             config: {
-                systemInstruction: systemPrompt,
                 temperature: 0.4, // Lower temperature for more accurate sifting
                 maxOutputTokens: 1024
             }
