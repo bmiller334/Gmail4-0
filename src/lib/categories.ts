@@ -5,6 +5,7 @@ export const EMAIL_CATEGORIES = [
   "Marketing",
   "Newsletter",
   "Promotions",
+  "Read-Later",
   "Security Alerts",
   "Social",
   "Updates",

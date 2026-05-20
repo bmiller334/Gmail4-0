@@ -91,6 +91,9 @@ Required JSON Format:
   "isUrgent": Boolean
 }
 
+Guidelines for specific categories:
+- "Read-Later": Use this category if the email is a link, bookmark, recipe, article, video link, or reading/listening material that the user sent to themselves or is meant to be read/watched later.
+
 ${examplesText}
 
 Email to classify:

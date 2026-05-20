@@ -79,6 +79,11 @@ export const getCalendarClient = async () => {
   return google.calendar({ version: 'v3', auth: authClient as any });
 };
 
+export const getSheetsClient = async () => {
+  const authClient = await getAuthClient();
+  return google.sheets({ version: 'v4', auth: authClient as any });
+};
+
 export async function getNextCalendarEvent() {
     try {
         const calendar = await getCalendarClient();

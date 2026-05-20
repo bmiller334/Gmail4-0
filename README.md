@@ -1,10 +1,10 @@
-# AI Context: NextN Email Sorter (Syracuse Hardware Command Center)
+# AI Context: NextN Email Sorter (Personal Home Page Dashboard)
 
 <system_profile>
   <stack>Next.js 15 (App Router), React 19, Tailwind CSS, shadcn/ui, Capacitor</stack>
   <cloud>GCP: Cloud Run, Cloud Pub/Sub, Firestore, Cloud Logging</cloud>
   <ai>Genkit + Gemini 2.5 Flash (STRICT: Do NOT use Gemini 1.5 or 2.0-exp)</ai>
-  <mission>Hardware store command center in Syracuse, KS. Automates inbox zero via LLM classification. Dashboard provides weather, commodities, news ticker, and shift notes.</mission>
+  <mission>Personal Home Page and inbox organizer. Automates inbox zero via LLM classification. Dashboard integrates weather, daily AI briefings, Google Sheets wealth tracking, a self-sent bookmark queue, and media controls.</mission>
   <deployment>GitHub `main` -> Cloud Build (Kaniko cache) -> Cloud Run. URL: https://nextn-email-sorter-fuuedc4idq-uc.a.run.app</deployment>
   <instructions>STRICT: Keep this README highly concise, dense, and token-optimized (<1200 tokens). Document only active system state and absolute constraints. Never add narrative changelogs or history.</instructions>
 </system_profile>
@@ -15,10 +15,12 @@
 2. **Processing Pipeline**: OAuth Auth -> Fetch Snippet -> Rule Match (deterministic `email_rules`) -> Fallback to AI (Gemini 2.5 Flash, low temperature for deterministic classifications) -> Move Label (Gmail API) -> Log to Firestore (`email_logs`).
 3. **Adaptive Learning**: Few-shot learning via last 5 user overrides (`email_corrections` and `email_urgency_corrections`).
 4. **Dashboard UI & Widgets**: Dynamic dashboard (`src/components/dashboard.tsx`) with:
-   - **Label Overview**: `label-overview-widget.tsx` accordion showing unread labels & subject expansion.
-   - **Analytics & Spammer Catcher**: `stats-widget.tsx` (day/week/month/year volume trends) & suggestions for rule creation.
-   - **Atmospheric UI**: Live weather-dependent theme backgrounds via `weather-background.tsx`.
-   - **Utilities**: Commodities ticker, RSS scrolling news ticker (`news-ticker.tsx`), shift handoffs (`shift-notes.tsx`).
+   - **Daily Briefing**: `daily-briefing-widget.tsx` (Morning Coffee greeting using Genkit + Gemini 2.5 Flash).
+   - **Wealth Tracker**: `finance-tracker-widget.tsx` (Google Sheets + Recharts personal wealth tracker).
+   - **Read Later Queue**: `read-later-widget.tsx` (AI-sorted bookmark list with Gmail archive check-off).
+   - **Media Player**: `spotify-widget.tsx` (Spotify Web Embed & YouTube player with preset buttons).
+   - **Label Overview & Analytics**: accordion showing unread labels & subject expansion, and `stats-widget.tsx` (trends).
+   - **Atmospheric UI**: Live weather-dependent theme backgrounds via `weather-background.tsx` and RSS ticker.
 5. **Rate Limiting**: AI calls capped at 1300/day. Batch cleanup (`/api/cleanup`) capped at 50 emails per request.
 
 ## Critical AI Constraints (STRICT)
@@ -56,10 +58,12 @@
 | `src/lib/gmail-service.ts` | Gmail API client adapter, OAuth authentication flow, and inbox counters. |
 | `src/lib/db-service.ts` | Master service for Firestore interactions (logging, corrections, daily stats, cache, settings). |
 | `src/components/dashboard.tsx` | Main command center frontend UI combining widgets. |
-| `src/components/stats-widget.tsx` | Analytical graphs (recharts) for volume tracking + Spammer Catcher rules suggestion. |
-| `src/components/label-overview-widget.tsx` | Interactive unread category accordion displaying email subjects. |
-| `src/app/ai-history/page.tsx` | Card-based AI History logs displaying prompt details and classifications via interactive modals. |
-| `cloudbuild.yaml` | Build pipeline config utilizing Kaniko layer caching & restricted Cloud Logging. |
+| `src/components/daily-briefing-widget.tsx` | Morning Coffee UI card rendering custom context-aware AI greetings. |
+| `src/components/finance-tracker-widget.tsx` | Recharts wealth visualizer pulling dynamically from Google Sheets. |
+| `src/components/read-later-widget.tsx` | Bookmarks queue syncing with Gmail API to archive checked items. |
+| `src/components/spotify-widget.tsx` | Aesthetic media dashboard player supporting presets and URL embedding. |
+| `src/app/ai-history/page.tsx` | Card-based AI History logs displaying prompt details and classifications. |
+| `cloudbuild.yaml` | Build pipeline config utilizing Kaniko layer caching. |
 
 ## Database Schema (Firestore)
 
@@ -68,7 +72,6 @@
 - **`email_corrections`**: Category overrides correcting the few-shot pipeline.
 - **`email_urgency_corrections`**: Urgency overrides.
 - **`email_rules`**: Hardcoded routing rules (bypasses AI) mapping senders to categories.
-- **`store_notes`**: Hardware store shift notes.
 - **`settings`**: Configuration documents (`google_auth` for OAuth credentials, `email_categories` for dynamic labels, `watch_status` for Gmail Watch, `recent_summary_cache`).
 - **`ai_summaries`**: Audit log records of *all* Gemini prompts/responses (classifications, briefings, category summaries).
 

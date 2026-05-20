@@ -62,7 +62,10 @@ import { StatusIndicator } from "./status-indicator";
 import { NewsTicker } from "./news-ticker";
 import { LabelOverviewWidget } from "./label-overview-widget";
 import { StatsWidget } from "./stats-widget";
-import { YoutubeWidget } from "./youtube-widget";
+import { DailyBriefingWidget } from "./daily-briefing-widget";
+import { FinanceTrackerWidget } from "./finance-tracker-widget";
+import { ReadLaterWidget } from "./read-later-widget";
+import { SpotifyWidget } from "./spotify-widget";
 // Types
 type DashboardStats = {
     totalProcessed: number;
@@ -158,8 +161,6 @@ export default function Dashboard() {
     const [correcting, setCorrecting] = useState<string | null>(null);
     const [summarizingCategory, setSummarizingCategory] = useState<string | null>(null);
     const [categorySummary, setCategorySummary] = useState<Record<string, string>>({});
-    const [summarizingRecent, setSummarizingRecent] = useState(false);
-    const [recentSummary, setRecentSummary] = useState<string | null>(null);
 
     const [currentDate, setCurrentDate] = useState<Date | null>(null);
     const [greeting, setGreeting] = useState<string>("Loading...");
@@ -295,28 +296,6 @@ export default function Dashboard() {
             setCleaning(false);
         }
     };
-
-    const handleSummarizeRecent = useCallback(async (showToast = true) => {
-        setSummarizingRecent(true);
-        try {
-            const res = await fetch('/api/summarize-recent');
-            const data = await res.json();
-            if (res.ok) {
-                setRecentSummary(data.summary);
-                if (showToast) toast({ title: "Recent summary ready" });
-            } else {
-                if (showToast) toast({ variant: "destructive", title: "Summary Failed", description: data.error });
-            }
-        } catch (err) {
-            if (showToast) toast({ variant: "destructive", title: "Error", description: "Failed to summarize." });
-        } finally {
-            setSummarizingRecent(false);
-        }
-    }, [toast]);
-
-    useEffect(() => {
-        handleSummarizeRecent(false);
-    }, [handleSummarizeRecent]);
 
     const handleSummarizeCategory = async (category: string) => {
         setSummarizingCategory(category);
@@ -479,21 +458,6 @@ export default function Dashboard() {
                             <a href="https://mail.google.com/mail/u/0/" target="_blank" className="hover:underline hover:text-primary transition-colors cursor-pointer">
                                 Inbox: <span className="font-bold">{inboxCount}</span>
                             </a>
-                            <span className="opacity-30">|</span>
-                            <Button
-                                variant="link"
-                                className="p-0 h-auto text-primary"
-                                onClick={() => handleSummarizeRecent(true)}
-                                disabled={summarizingRecent}
-                            >
-                                {summarizingRecent ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
-                                Briefing
-                            </Button>
-                            <span className="opacity-30">|</span>
-                            <Link href="/ai-history" className="hover:underline hover:text-primary transition-colors cursor-pointer flex items-center text-sm font-medium text-muted-foreground hover:text-foreground">
-                                <BrainCircuit className="h-4 w-4 mr-1" />
-                                History
-                            </Link>
                         </p>
                     </div>
 
@@ -546,19 +510,9 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {recentSummary && (
-                    <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg relative animate-in fade-in slide-in-from-top-2">
-                        <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 hover:bg-background/80" onClick={() => setRecentSummary(null)}>
-                            <X className="h-4 w-4" />
-                        </Button>
-                        <h3 className="font-semibold text-primary flex items-center gap-2 mb-2">
-                            <Sparkles className="h-4 w-4" /> Recent Email Briefing
-                        </h3>
-                        <div className="text-sm whitespace-pre-wrap leading-relaxed text-muted-foreground">
-                            {recentSummary}
-                        </div>
-                    </div>
-                )}
+                <div className="w-full">
+                    <DailyBriefingWidget />
+                </div>
 
                 <div className="w-full">
                     <WeatherWidget />
@@ -566,7 +520,12 @@ export default function Dashboard() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <MarketInsightsWidget />
-                    <YoutubeWidget />
+                    <SpotifyWidget />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    <FinanceTrackerWidget />
+                    <ReadLaterWidget />
                 </div>
             </div>
 
