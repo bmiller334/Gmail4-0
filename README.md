@@ -18,7 +18,7 @@
    - **Daily Briefing**: `daily-briefing-widget.tsx` (Morning Coffee greeting using Genkit + Gemini 2.5 Flash).
    - **Wealth Tracker**: `finance-tracker-widget.tsx` (Google Sheets + Recharts personal wealth tracker).
    - **Read Later Queue**: `read-later-widget.tsx` (AI-sorted bookmark list with Gmail archive check-off).
-   - **Media Player**: `spotify-widget.tsx` (Spotify Web Embed & YouTube player with preset buttons).
+   - **Media Player**: `media-widget.tsx` (YouTube Music embeds, SiriusXM presets, and Audible tracker).
    - **Label Overview & Analytics**: accordion showing unread labels & subject expansion, and `stats-widget.tsx` (trends).
    - **Atmospheric UI**: Live weather-dependent theme backgrounds via `weather-background.tsx` and RSS ticker.
 5. **Rate Limiting**: AI calls capped at 1300/day. Batch cleanup (`/api/cleanup`) capped at 50 emails per request.
@@ -61,7 +61,7 @@
 | `src/components/daily-briefing-widget.tsx` | Morning Coffee UI card rendering custom context-aware AI greetings. |
 | `src/components/finance-tracker-widget.tsx` | Recharts wealth visualizer pulling dynamically from Google Sheets. |
 | `src/components/read-later-widget.tsx` | Bookmarks queue syncing with Gmail API to archive checked items. |
-| `src/components/spotify-widget.tsx` | Aesthetic media dashboard player supporting presets and URL embedding. |
+| `src/components/media-widget.tsx` | Aesthetic media player supporting YouTube Music, SiriusXM presets, and Audible tracking. |
 | `src/app/ai-history/page.tsx` | Card-based AI History logs displaying prompt details and classifications. |
 | `cloudbuild.yaml` | Build pipeline config utilizing Kaniko layer caching. |
 

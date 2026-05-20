@@ -65,7 +65,7 @@ import { StatsWidget } from "./stats-widget";
 import { DailyBriefingWidget } from "./daily-briefing-widget";
 import { FinanceTrackerWidget } from "./finance-tracker-widget";
 import { ReadLaterWidget } from "./read-later-widget";
-import { SpotifyWidget } from "./spotify-widget";
+import { MediaWidget } from "./media-widget";
 // Types
 type DashboardStats = {
     totalProcessed: number;
@@ -520,7 +520,7 @@ export default function Dashboard() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <MarketInsightsWidget />
-                    <SpotifyWidget />
+                    <MediaWidget />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
