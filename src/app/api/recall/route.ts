@@ -1,5 +1,6 @@
 import { ai } from "@/ai/genkit";
 import { getRecentLogs } from "@/lib/db-service";
+import { getRecentDriveFiles, getRecentPhotos } from "@/lib/gmail-service";
 import { NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
@@ -11,38 +12,58 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Missing query parameter" }, { status: 400 });
         }
 
-        // 1. Fetch the last 100 email logs from Firestore
-        const logs = await getRecentLogs(100);
+        // 1. Fetch the last 100 email logs, recent drive files, and photos
+        const [logs, driveFiles, photos] = await Promise.all([
+            getRecentLogs(100),
+            getRecentDriveFiles(),
+            getRecentPhotos()
+        ]);
 
-        if (!logs || logs.length === 0) {
+        if ((!logs || logs.length === 0) && (!driveFiles || driveFiles.length === 0) && (!photos || photos.length === 0)) {
             return NextResponse.json({
-                response: "Your digital archive is currently empty. As soon as emails are processed, they will appear here in your Mind Palace."
+                response: "Your digital archive is currently empty. As soon as items are processed, they will appear here in your Assistant."
             });
         }
 
         // 2. Format logs for AI context
-        const formattedLogs = logs.map((log: any, index: number) => {
+        const formattedLogs = logs && logs.length > 0 ? logs.map((log: any, index: number) => {
             const dateStr = log.timestamp?._seconds 
                 ? new Date(log.timestamp._seconds * 1000).toLocaleString() 
                 : new Date(log.timestamp).toLocaleString();
             return `[${index + 1}] Date: ${dateStr} | From: ${log.sender} | Subject: ${log.subject} | Category: ${log.category} | Urgent: ${log.isUrgent ? 'YES' : 'NO'} | Snippet: ${log.snippet || 'None'}`;
-        }).join("\n---\n");
+        }).join("\n---\n") : "No recent email logs.";
+
+        const formattedDriveFiles = driveFiles && driveFiles.length > 0 
+            ? driveFiles.map((file: any) => `- ${file.name} (Type: ${file.mimeType}, Modified: ${file.modifiedTime})`).join("\n")
+            : "No recent Drive files found.";
+
+        const formattedPhotos = photos && photos.length > 0
+            ? photos.map((photo: any) => `- ${photo.filename} (Created: ${photo.mediaMetadata?.creationTime})`).join("\n")
+            : "No recent Photos found.";
+
 
         // 3. Define the AI System Prompt and Instruction
         const systemPrompt = `
-You are the "Mind Palace", a sophisticated, highly intelligent, and elegant personal memory archivist.
-The user is querying their personal digital archives (the 100 most recent processed email logs listed below).
+You are a highly capable and intelligent AI assistant powered by Gemini.
+The user is asking you a question. You have access to their personal digital archives (the 100 most recent processed email logs listed below) as part of their profile context.
 
 Your mission:
-- Synthesize an elegant, accurate, and direct answer using ONLY the provided email log context.
-- Maintain a refined, articulate, and insightful tone. Act like a master class librarian of their digital life.
+- Answer the user's question accurately and helpfully.
+- If the question is about their personal information, emails, or recent events, use the provided email logs to answer it.
+- If the question is a general knowledge question, coding question, or a creative request, answer it to the best of your ability as a general AI.
+- Maintain a refined, articulate, and insightful tone.
 - Use clean Markdown lists, bold highlights, and spacing to structure your response beautifully.
-- Cite specific dates, senders, and email subjects so they have exact context.
-- If you find no emails matching their query, respond with a polite, sophisticated message indicating that you searched the entire archive of recent events but found no matching records, perhaps suggesting a different query parameter.
-- Keep your explanation concise and direct (aim for 3-5 sentences unless a longer breakdown is required).
+- When referencing emails, cite specific dates, senders, and email subjects so they have exact context.
+- Keep your explanation concise and direct.
 
-Email Logs Context:
+User Profile Context (Recent Email Logs):
 ${formattedLogs}
+
+Recent Google Drive Files (Docs, Sheets, etc.):
+${formattedDriveFiles}
+
+Recent Google Photos:
+${formattedPhotos}
 `;
 
         // 4. Generate response using Genkit singleton + Gemini 2.5 Flash

@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Search, Sparkles, BrainCircuit, Loader2, CornerDownLeft, X, BookOpen } from "lucide-react";
 
 const SUGGESTIONS = [
-    "Have I received any invoices or receipts recently?",
-    "Did I get any urgent emails in the last few days?",
-    "Summarize my pending action items and requests.",
-    "Show me a list of recent updates from newsletters."
+    "What is a good recipe for dinner tonight?",
+    "Have I received any urgent emails recently?",
+    "Write a polite decline email.",
+    "Summarize my recent newsletter updates."
 ];
 
 export function MindPalace() {
@@ -32,10 +32,10 @@ export function MindPalace() {
                 const data = await res.json();
                 setResponse(data.response);
             } else {
-                setResponse("The gates to the Mind Palace are temporarily locked. Please check back in a moment.");
+                setResponse("I am temporarily unavailable. Please check back in a moment.");
             }
         } catch (e) {
-            setResponse("An unexpected shadow has crossed my recall memory. Let me retry shortly.");
+            setResponse("An unexpected error occurred. Let me retry shortly.");
         } finally {
             setLoading(false);
         }
@@ -51,10 +51,10 @@ export function MindPalace() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                     <div className="space-y-0.5">
                         <h3 className="text-sm font-extrabold tracking-wider text-violet-600 dark:text-violet-400 uppercase flex items-center gap-1.5">
-                            <BrainCircuit className="h-4 w-4 drop-shadow-[0_0_8px_rgba(139,92,246,0.6)] animate-pulse" /> Mind Palace
+                            <Sparkles className="h-4 w-4 drop-shadow-[0_0_8px_rgba(139,92,246,0.6)] animate-pulse" /> Gemini Assistant
                         </h3>
                         <p className="text-xs text-muted-foreground">
-                            Recall facts, summarize events, and search your personal inbox archives semantically.
+                            Ask me anything, or query your personal inbox archives.
                         </p>
                     </div>
                 </div>
@@ -69,7 +69,7 @@ export function MindPalace() {
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") handleSearch(query);
                             }}
-                            placeholder="Query your history: 'Any billing receipts?' or 'What did my boss email about?'..." 
+                            placeholder="Ask me anything or query your history..." 
                             className="pl-9 pr-10 h-10 text-xs bg-background/50 border-violet-500/20 focus-visible:ring-violet-500/50 focus-visible:border-violet-500/50 backdrop-blur-sm"
                             disabled={loading}
                         />
@@ -93,7 +93,7 @@ export function MindPalace() {
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                             <>
-                                <span>Recall</span>
+                                <span>Ask</span>
                                 <CornerDownLeft className="h-3 w-3 opacity-60" />
                             </>
                         )}
@@ -131,7 +131,7 @@ export function MindPalace() {
                             <BrainCircuit className="h-6 w-6 text-violet-500 animate-bounce" />
                         </div>
                         <p className="text-xs text-muted-foreground text-center animate-pulse">
-                            Consulting the archives. Scanning digital records...
+                            Thinking...
                         </p>
                     </div>
                 )}
@@ -141,7 +141,7 @@ export function MindPalace() {
                     <div className="relative bg-gradient-to-r from-violet-500/5 via-indigo-500/5 to-transparent border border-violet-500/15 rounded-xl p-4.5 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="flex items-center justify-between border-b border-violet-500/10 pb-2">
                             <span className="text-[10px] font-black uppercase text-violet-600 dark:text-violet-400 flex items-center gap-1.5">
-                                <BookOpen className="h-3.5 w-3.5" /> Retrieved Memory
+                                <Sparkles className="h-3.5 w-3.5" /> Response
                             </span>
                             <button
                                 onClick={() => setResponse(null)}

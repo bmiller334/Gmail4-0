@@ -172,6 +172,10 @@ export default function Dashboard() {
     const [searchTerm, setSearchTerm] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("All");
 
+    const [ruleSearchTerm, setRuleSearchTerm] = useState("");
+    const [ruleCategoryFilter, setRuleCategoryFilter] = useState("All");
+    const [isAddRuleDialogOpen, setIsAddRuleDialogOpen] = useState(false);
+
     const [newRuleSender, setNewRuleSender] = useState("");
     const [newRuleCategory, setNewRuleCategory] = useState<string>(EMAIL_CATEGORIES[0]);
     const [isAddingRule, setIsAddingRule] = useState(false);
@@ -392,6 +396,7 @@ export default function Dashboard() {
                 toast({ title: "Rule Added", description: `Emails from "${sender}" will be moved to ${category}.` });
                 if (sender === newRuleSender) setNewRuleSender("");
                 setEditingSuggestion(null); // Close modal if open
+                setIsAddRuleDialogOpen(false);
                 fetchData();
             }
         } catch (err) {
@@ -420,6 +425,12 @@ export default function Dashboard() {
 
     const maxCategoryCount = stats ? Math.max(...Object.values(stats.categories || {}), 1) : 1;
     const remainingQuota = Math.max(0, DAILY_HARD_LIMIT - (stats?.totalProcessed || 0));
+
+    const filteredRulesList = rules.filter(rule => {
+        const matchesSearch = rule.sender.toLowerCase().includes(ruleSearchTerm.toLowerCase());
+        const matchesCategory = ruleCategoryFilter === "All" || rule.category === ruleCategoryFilter;
+        return matchesSearch && matchesCategory;
+    });
 
     return (
         <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -738,7 +749,7 @@ export default function Dashboard() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-[300px] overflow-y-auto pr-2 pb-2">
                                     {suggestions.map((s, i) => (
                                         <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-background rounded-md border shadow-sm">
                                             <div className="overflow-hidden flex-1 mr-2">
@@ -793,66 +804,106 @@ export default function Dashboard() {
                     )}
 
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Deterministic Rules</CardTitle>
-                            <CardDescription>
-                                Force specific senders to always go to a certain category, bypassing AI classification.
-                            </CardDescription>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
+                            <div className="space-y-1">
+                                <CardTitle>Deterministic Rules</CardTitle>
+                                <CardDescription>
+                                    Force specific senders to always go to a certain category, bypassing AI classification.
+                                </CardDescription>
+                            </div>
+                            <Dialog open={isAddRuleDialogOpen} onOpenChange={setIsAddRuleDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button size="sm"><Plus className="mr-2 h-4 w-4" /> Add Rule</Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Add Deterministic Rule</DialogTitle>
+                                        <DialogDescription>
+                                            Force specific senders to always go to a certain category.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="py-4 space-y-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">Sender (contains text)</label>
+                                            <Input
+                                                placeholder="e.g. @bankofamerica.com"
+                                                value={newRuleSender}
+                                                onChange={(e) => setNewRuleSender(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">Category</label>
+                                            <Select value={newRuleCategory} onValueChange={setNewRuleCategory}>
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <DialogFooter>
+                                        <Button onClick={() => handleAddRule()} disabled={isAddingRule || !newRuleSender}>
+                                            Save Rule
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex items-end gap-4 border-b pb-4">
-                                <div className="space-y-2 flex-1">
-                                    <label className="text-sm font-medium">Sender (contains text)</label>
-                                    {/* FIXED: Correct state setter */}
+                        <CardContent className="pt-6">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                                <div className="flex items-center gap-2 w-full sm:max-w-sm">
+                                    <Search className="h-4 w-4 text-muted-foreground" />
                                     <Input
-                                        placeholder="e.g. @bankofamerica.com"
-                                        value={newRuleSender}
-                                        onChange={(e) => setNewRuleSender(e.target.value)}
+                                        placeholder="Search rules..."
+                                        value={ruleSearchTerm}
+                                        onChange={(e) => setRuleSearchTerm(e.target.value)}
+                                        className="w-full"
                                     />
                                 </div>
-                                <div className="space-y-2 w-[200px]">
-                                    <label className="text-sm font-medium">Category</label>
-                                    <Select value={newRuleCategory} onValueChange={setNewRuleCategory}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <Button onClick={() => handleAddRule()} disabled={isAddingRule || !newRuleSender}>
-                                    <Plus className="mr-2 h-4 w-4" /> Add Rule
-                                </Button>
+                                <Select value={ruleCategoryFilter} onValueChange={setRuleCategoryFilter}>
+                                    <SelectTrigger className="w-full sm:w-[180px]">
+                                        <SelectValue placeholder="Category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="All">All Categories</SelectItem>
+                                        {EMAIL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Sender Match</TableHead>
-                                        <TableHead>Target Category</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {rules.length === 0 && (
+                            <div className="max-h-[500px] overflow-y-auto rounded-md border">
+                                <Table>
+                                    <TableHeader className="sticky top-0 bg-background z-10">
                                         <TableRow>
-                                            <TableCell colSpan={3} className="text-center text-muted-foreground">No rules defined yet.</TableCell>
+                                            <TableHead>Sender Match</TableHead>
+                                            <TableHead>Target Category</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
                                         </TableRow>
-                                    )}
-                                    {rules.map((rule) => (
-                                        <TableRow key={rule.id}>
-                                            <TableCell className="font-mono">{rule.sender}</TableCell>
-                                            <TableCell><Badge variant="outline">{rule.category}</Badge></TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" onClick={() => handleDeleteRule(rule.id)}>
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredRulesList.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
+                                                    {rules.length === 0 ? "No rules defined yet." : "No rules match your search."}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {filteredRulesList.map((rule) => (
+                                            <TableRow key={rule.id}>
+                                                <TableCell className="font-mono">{rule.sender}</TableCell>
+                                                <TableCell><Badge variant="outline">{rule.category}</Badge></TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteRule(rule.id)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>

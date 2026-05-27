@@ -36,7 +36,9 @@ export async function GET(request: Request) {
 
   const scopes = [
     'https://www.googleapis.com/auth/gmail.modify',
-    'https://www.googleapis.com/auth/calendar.readonly'
+    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/photoslibrary.readonly'
   ];
 
   const url = oauth2Client.generateAuthUrl({

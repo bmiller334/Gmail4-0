@@ -84,6 +84,56 @@ export const getSheetsClient = async () => {
   return google.sheets({ version: 'v4', auth: authClient as any });
 };
 
+export const getDriveClient = async () => {
+  const authClient = await getAuthClient();
+  return google.drive({ version: 'v3', auth: authClient as any });
+};
+
+export async function getRecentDriveFiles() {
+  try {
+    const drive = await getDriveClient();
+    const res = await drive.files.list({
+      pageSize: 10,
+      fields: 'files(id, name, mimeType, modifiedTime, webViewLink)',
+      orderBy: 'modifiedTime desc',
+    });
+    return res.data.files || [];
+  } catch (error) {
+    console.error("Failed to fetch drive files:", error);
+    return [];
+  }
+}
+
+export async function getRecentPhotos() {
+  try {
+    const authClient = await getAuthClient();
+    let tokenInfo: any;
+    if ('getAccessToken' in authClient) {
+      tokenInfo = await (authClient as OAuth2Client).getAccessToken();
+    } else {
+      tokenInfo = await (authClient as any).getAccessToken();
+    }
+    
+    const token = tokenInfo?.token;
+    if (!token) return [];
+
+    const res = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems?pageSize=10', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    
+    if (!res.ok) {
+        throw new Error(`Photos API returned ${res.status}`);
+    }
+    const data = await res.json();
+    return data.mediaItems || [];
+  } catch (error) {
+    console.error("Failed to fetch recent photos:", error);
+    return [];
+  }
+}
+
 export async function getNextCalendarEvent() {
     try {
         const calendar = await getCalendarClient();
