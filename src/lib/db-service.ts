@@ -39,6 +39,7 @@ export type EmailLog = {
     isUrgent: boolean;
     snippet?: string;
     reasoning?: string;
+    otpCode?: string;
 };
 
 export type AiSummary = {

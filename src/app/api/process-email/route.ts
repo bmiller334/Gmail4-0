@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
         let category = null;
         let isUrgent = false;
         let reasoning = null;
+        let otpCode: string | undefined = undefined;
 
         // Check deterministic rules first
         const matchedRule = (rules || []).find(r => sender.toLowerCase().includes(r.sender.toLowerCase()));
@@ -157,6 +158,7 @@ export async function POST(req: NextRequest) {
             category = classification.category;
             isUrgent = classification.isUrgent;
             reasoning = classification.reasoning;
+            otpCode = classification.otpCode;
             console.log(`[Push] AI Classified as: ${category}`);
           } catch (aiError) {
             console.error("[Push] AI Classification failed:", aiError);
@@ -178,6 +180,7 @@ export async function POST(req: NextRequest) {
           isUrgent: isUrgent,
           snippet,
           reasoning: reasoning || "No reasoning provided",
+          otpCode: otpCode,
           timestamp: new Date()
         });
 

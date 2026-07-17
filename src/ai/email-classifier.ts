@@ -8,6 +8,7 @@ const ClassificationSchema = z.object({
   category: z.string(),
   reasoning: z.string(),
   isUrgent: z.boolean(),
+  otpCode: z.string().optional(),
 });
 
 function normalize(str: string): string {
@@ -88,7 +89,8 @@ Required JSON Format:
 {
   "category": "String (Must match one of the listed categories exactly)",
   "reasoning": "String (Very brief explanation, max 10 words)",
-  "isUrgent": Boolean
+  "isUrgent": Boolean,
+  "otpCode": "String or null (Extract any Verification Code, OTP, or 2FA code. Return null if none is found.)"
 }
 
 Guidelines for specific categories:
@@ -135,7 +137,8 @@ Snippet: ${snippet}
                     output = {
                         category: foundCategory,
                         reasoning: "Extracted from malformed AI response.",
-                        isUrgent: cleanText.toLowerCase().includes("true")
+                        isUrgent: cleanText.toLowerCase().includes("true"),
+                        otpCode: undefined
                     };
                 } else {
                      throw new Error("Could not parse JSON or find category in text.");
@@ -163,6 +166,7 @@ Snippet: ${snippet}
               category: finalCategory,
               reasoning: output.reasoning || "No reasoning provided.",
               isUrgent: !!output.isUrgent,
+              otpCode: output.otpCode || undefined,
             };
 
         } catch (error: any) {
@@ -173,7 +177,8 @@ Snippet: ${snippet}
                 return {
                     category: "Manual Sort",
                     reasoning: "AI Error: " + error.message,
-                    isUrgent: false
+                    isUrgent: false,
+                    otpCode: undefined
                 };
             }
             
@@ -187,7 +192,8 @@ Snippet: ${snippet}
     return {
         category: "Manual Sort",
         reasoning: "AI Error: Max retries exceeded.",
-        isUrgent: false
+        isUrgent: false,
+        otpCode: undefined
     };
   }
 );

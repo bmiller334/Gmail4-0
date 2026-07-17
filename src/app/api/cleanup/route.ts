@@ -84,7 +84,8 @@ export async function POST(req: Request) {
                 isUrgent: classification.isUrgent,
                 timestamp: new Date(),
                 snippet,
-                reasoning: classification.reasoning
+                reasoning: classification.reasoning,
+                otpCode: classification.otpCode
             });
 
             processedCount++;

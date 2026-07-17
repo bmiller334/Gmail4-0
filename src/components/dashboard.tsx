@@ -64,10 +64,9 @@ import { NewsTicker } from "./news-ticker";
 import { LabelOverviewWidget } from "./label-overview-widget";
 import { StatsWidget } from "./stats-widget";
 import { DailyBriefingWidget } from "./daily-briefing-widget";
-import { FinanceTrackerWidget } from "./finance-tracker-widget";
 import { ReadLaterWidget } from "./read-later-widget";
-import { MediaWidget } from "./media-widget";
 import { MindPalace } from "./mind-palace";
+import { ImportantEmailsWidget } from "./important-emails-widget";
 // Types
 type DashboardStats = {
     totalProcessed: number;
@@ -91,6 +90,7 @@ type EmailLog = {
     timestamp: any;
     isUrgent?: boolean;
     reasoning?: string;
+    otpCode?: string;
 };
 
 type SenderRule = {
@@ -538,11 +538,6 @@ export default function Dashboard() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <MarketInsightsWidget />
-                    <MediaWidget />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                    <FinanceTrackerWidget />
                     <ReadLaterWidget />
                 </div>
             </div>
@@ -579,6 +574,7 @@ export default function Dashboard() {
                         </Card>
                     </div>
 
+                    <ImportantEmailsWidget logs={logs} />
                     <LabelOverviewWidget />
                 </TabsContent>
 
