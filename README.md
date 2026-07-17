@@ -14,14 +14,12 @@
 1. **Ingestion**: `scripts/setup-gmail-watch.ts` registers Gmail Watch -> Pub/Sub `gmail-incoming` -> push to `/api/process-email` (processes new messages using `historyId`).
 2. **Processing Pipeline**: OAuth Auth -> Fetch Snippet -> Rule Match (deterministic `email_rules`) -> Fallback to AI (Gemini 2.5 Flash, low temperature for deterministic classifications) -> Move Label (Gmail API) -> Log to Firestore (`email_logs`).
 3. **Adaptive Learning**: Few-shot learning via last 5 user overrides (`email_corrections` and `email_urgency_corrections`).
-4. **Dashboard UI & Widgets**: Dynamic dashboard (`src/components/dashboard.tsx`) with:
-   - **Daily Briefing**: `daily-briefing-widget.tsx` (Morning Coffee greeting using Genkit + Gemini 2.5 Flash).
-   - **Market Insights**: `market-insights-widget.tsx` (Market sentiment, indices, and sectors).
-   - **Read Later Queue**: `read-later-widget.tsx` (AI-sorted bookmark list with Gmail archive check-off).
-   - **Thermostat**: `thermostat-widget.tsx` (Home temperature and climate control).
-   - **Gemini Assistant**: `mind-palace.tsx` (Personal AI querying inbox history, Google Drive files, and Google Photos).
-   - **Label Overview & Analytics**: accordion showing unread labels & subject expansion, and `stats-widget.tsx` (trends).
-   - **Atmospheric UI**: Live weather-dependent theme backgrounds via `weather-background.tsx`, `weather-widget.tsx`, and `news-ticker.tsx`.
+4. **Dashboard UI & Widgets**: Modularized UI with global `<Navigation />` across dedicated routes:
+   - **`/` (Dashboard Overview)**: Core inbox metrics, logs, Label Overview, and `daily-briefing-widget.tsx`.
+   - **`/home` (Smart Home)**: Environment tracking via `weather-widget.tsx` and `thermostat-widget.tsx`.
+   - **`/finance` (Markets)**: Sector and sentiment insights via `market-insights-widget.tsx`.
+   - **`/assistant` (Productivity)**: Personal AI queries via `mind-palace.tsx` and bookmarking via `read-later-widget.tsx`.
+   - **Atmospheric UI**: Live weather-dependent theme backgrounds (`weather-background.tsx`) run persistently in `src/app/layout.tsx`.
 5. **Rate Limiting**: AI calls capped at 1300/day. Batch cleanup (`/api/cleanup`) capped at 50 emails per request.
 
 ## Critical AI Constraints (STRICT)
@@ -58,6 +56,11 @@
 | `src/ai/email-classifier.ts` | Flows for AI classification, category summaries, and briefings using Genkit + Gemini. |
 | `src/lib/gmail-service.ts` | Gmail API client adapter, OAuth authentication flow, and inbox counters. |
 | `src/lib/db-service.ts` | Master service for Firestore interactions (logging, corrections, daily stats, cache, settings). |
+| `src/app/layout.tsx` | Global layout holding the `<Navigation />` bar and persistent `<WeatherBackground />`. |
+| `src/app/page.tsx` | Main Dashboard containing email overview, daily briefing, and logs. |
+| `src/app/home/page.tsx` | Smart Home route for Thermostat and Weather widgets. |
+| `src/app/finance/page.tsx` | Finance route for Market Insights widget. |
+| `src/app/assistant/page.tsx` | Productivity route for Mind Palace and Read Later widgets. |
 | `src/components/dashboard.tsx` | Main command center frontend UI combining widgets. |
 | `src/components/daily-briefing-widget.tsx` | Morning Coffee UI card rendering custom context-aware AI greetings. |
 | `src/components/market-insights-widget.tsx` | Market sentiment, indices, and sector insights. |

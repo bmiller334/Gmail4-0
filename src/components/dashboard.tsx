@@ -56,16 +56,10 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Slider } from "@/components/ui/slider";
 
-import { WeatherWidget } from "./weather-widget";
-import { ThermostatWidget } from "./thermostat-widget";
-import { MarketInsightsWidget } from "./market-insights-widget";
 import { StatusIndicator } from "./status-indicator";
-import { NewsTicker } from "./news-ticker";
+import { DailyBriefTicker } from "./daily-brief-ticker";
 import { LabelOverviewWidget } from "./label-overview-widget";
-import { StatsWidget } from "./stats-widget";
 import { DailyBriefingWidget } from "./daily-briefing-widget";
-import { ReadLaterWidget } from "./read-later-widget";
-import { MindPalace } from "./mind-palace";
 import { ImportantEmailsWidget } from "./important-emails-widget";
 // Types
 type DashboardStats = {
@@ -458,7 +452,7 @@ export default function Dashboard() {
             )}
 
             <div className="flex flex-col gap-4">
-                <NewsTicker />
+                <DailyBriefTicker />
                 <div className="flex justify-between items-end mb-2">
                     <div>
                         <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
@@ -524,26 +518,9 @@ export default function Dashboard() {
                 </div>
 
                 <div className="w-full">
-                    <DailyBriefingWidget />
-                </div>
-
-                <div className="w-full">
                     <LabelOverviewWidget />
                 </div>
 
-                <div className="w-full">
-                    <MindPalace />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                    <WeatherWidget />
-                    <ThermostatWidget />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                    <MarketInsightsWidget />
-                    <ReadLaterWidget />
-                </div>
             </div>
 
             <Tabs defaultValue="overview" className="space-y-4">
