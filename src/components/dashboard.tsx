@@ -61,6 +61,7 @@ import { DailyBriefTicker } from "./daily-brief-ticker";
 import { LabelOverviewWidget } from "./label-overview-widget";
 import { DailyBriefingWidget } from "./daily-briefing-widget";
 import { ImportantEmailsWidget } from "./important-emails-widget";
+import { StatsWidget } from "./stats-widget";
 // Types
 type DashboardStats = {
     totalProcessed: number;
