@@ -16,12 +16,12 @@
 3. **Adaptive Learning**: Few-shot learning via last 5 user overrides (`email_corrections` and `email_urgency_corrections`).
 4. **Dashboard UI & Widgets**: Dynamic dashboard (`src/components/dashboard.tsx`) with:
    - **Daily Briefing**: `daily-briefing-widget.tsx` (Morning Coffee greeting using Genkit + Gemini 2.5 Flash).
-   - **Wealth Tracker**: `finance-tracker-widget.tsx` (Google Sheets + Recharts personal wealth tracker).
+   - **Market Insights**: `market-insights-widget.tsx` (Market sentiment, indices, and sectors).
    - **Read Later Queue**: `read-later-widget.tsx` (AI-sorted bookmark list with Gmail archive check-off).
-   - **Media Player**: `media-widget.tsx` (YouTube Music embeds, SiriusXM presets, and Audible tracker).
+   - **Thermostat**: `thermostat-widget.tsx` (Home temperature and climate control).
    - **Gemini Assistant**: `mind-palace.tsx` (Personal AI querying inbox history, Google Drive files, and Google Photos).
    - **Label Overview & Analytics**: accordion showing unread labels & subject expansion, and `stats-widget.tsx` (trends).
-   - **Atmospheric UI**: Live weather-dependent theme backgrounds via `weather-background.tsx` and RSS ticker.
+   - **Atmospheric UI**: Live weather-dependent theme backgrounds via `weather-background.tsx`, `weather-widget.tsx`, and `news-ticker.tsx`.
 5. **Rate Limiting**: AI calls capped at 1300/day. Batch cleanup (`/api/cleanup`) capped at 50 emails per request.
 
 ## Critical AI Constraints (STRICT)
@@ -60,9 +60,9 @@
 | `src/lib/db-service.ts` | Master service for Firestore interactions (logging, corrections, daily stats, cache, settings). |
 | `src/components/dashboard.tsx` | Main command center frontend UI combining widgets. |
 | `src/components/daily-briefing-widget.tsx` | Morning Coffee UI card rendering custom context-aware AI greetings. |
-| `src/components/finance-tracker-widget.tsx` | Recharts wealth visualizer pulling dynamically from Google Sheets. |
+| `src/components/market-insights-widget.tsx` | Market sentiment, indices, and sector insights. |
 | `src/components/read-later-widget.tsx` | Bookmarks queue syncing with Gmail API to archive checked items. |
-| `src/components/media-widget.tsx` | Aesthetic media player supporting YouTube Music, SiriusXM presets, and Audible tracking. |
+| `src/components/thermostat-widget.tsx` | Home temperature and climate control interface. |
 | `src/components/mind-palace.tsx` | Gemini Assistant UI querying email, Drive, and Photos context. |
 | `src/app/ai-history/page.tsx` | Card-based AI History logs displaying prompt details and classifications. |
 | `cloudbuild.yaml` | Build pipeline config utilizing Kaniko layer caching. |
