@@ -528,6 +528,10 @@ export default function Dashboard() {
                 </div>
 
                 <div className="w-full">
+                    <LabelOverviewWidget />
+                </div>
+
+                <div className="w-full">
                     <MindPalace />
                 </div>
 
@@ -575,7 +579,6 @@ export default function Dashboard() {
                     </div>
 
                     <ImportantEmailsWidget logs={logs} />
-                    <LabelOverviewWidget />
                 </TabsContent>
 
                 <TabsContent value="activity" className="space-y-4">

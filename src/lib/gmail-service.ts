@@ -341,3 +341,33 @@ export async function getUnreadEmailsByCategory(categoryName: string, maxResults
   }
 }
 
+export async function getMessagesReadStatus(messageIds: string[]): Promise<Record<string, boolean>> {
+  try {
+    const gmail = await getGmailClient();
+    const results: Record<string, boolean> = {};
+    
+    // Process in batches of 20 to avoid hitting limits or long concurrent requests
+    const batch = messageIds.slice(0, 20);
+    
+    await Promise.all(batch.map(async (id) => {
+        try {
+            const res = await gmail.users.messages.get({
+                userId: 'me',
+                id: id,
+                format: 'minimal',
+                fields: 'id,labelIds'
+            });
+            results[id] = res.data.labelIds?.includes('UNREAD') || false;
+        } catch (e) {
+            console.error(`Failed to get status for ${id}:`, e);
+            results[id] = false; // Default to read if we can't fetch it
+        }
+    }));
+    
+    return results;
+  } catch (error) {
+    console.error("Failed to check read status:", error);
+    return {};
+  }
+}
+

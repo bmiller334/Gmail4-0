@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStats, getRecentLogs, getSenderRules, getWatchStatus } from '@/lib/db-service';
-import { getInboxCount } from '@/lib/gmail-service';
+import { getInboxCount, getMessagesReadStatus } from '@/lib/gmail-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,10 +22,26 @@ export async function GET(req: Request) {
             getWatchStatus()
         ]);
 
+        // Filter and get unread status only for important emails to display in ImportantEmailsWidget
+        const EXCLUDED_CATEGORIES = ["Marketing", "Newsletter", "Promotions", "Social"];
+        const importantLogs = logs.filter(log => !EXCLUDED_CATEGORIES.includes(log.category));
+        
+        // Grab IDs of the top 20 important logs to check if they are unread
+        const logsToCheck = importantLogs.slice(0, 20).map(l => l.id);
+        const unreadStatusMap = await getMessagesReadStatus(logsToCheck);
+        
+        // Enrich logs with isUnread status
+        const enrichedLogs = logs.map(log => {
+            if (unreadStatusMap[log.id] !== undefined) {
+                return { ...log, isUnread: unreadStatusMap[log.id] };
+            }
+            return log;
+        });
+
         return NextResponse.json({ 
             stats: todayStats,
             weeklyStats,
-            logs, 
+            logs: enrichedLogs, 
             insights,
             rules,
             inboxCount,

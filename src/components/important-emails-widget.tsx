@@ -14,6 +14,7 @@ type EmailLog = {
     timestamp: any;
     isUrgent?: boolean;
     otpCode?: string;
+    isUnread?: boolean;
 };
 
 interface ImportantEmailsWidgetProps {
@@ -26,8 +27,8 @@ export function ImportantEmailsWidget({ logs }: ImportantEmailsWidgetProps) {
     const { toast } = useToast();
 
     const importantLogs = logs.filter(
-        (log) => !EXCLUDED_CATEGORIES.includes(log.category)
-    ).slice(0, 10); // Show top 10
+        (log) => !EXCLUDED_CATEGORIES.includes(log.category) && log.isUnread === true
+    ).slice(0, 10); // Show top 10 unread
 
     const handleCopy = (code: string) => {
         navigator.clipboard.writeText(code);
