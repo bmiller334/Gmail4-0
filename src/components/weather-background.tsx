@@ -108,8 +108,8 @@ export function WeatherBackground() {
                     position: absolute;
                     background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 70%);
                     border-radius: 50%;
-                    filter: blur(30px);
                     animation: float-cloud linear infinite;
+                    will-change: transform;
                 }
                 .drop {
                     position: absolute;
@@ -117,13 +117,14 @@ export function WeatherBackground() {
                     height: 50px;
                     background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(150,200,255,0.4));
                     animation: fall-rain linear infinite;
+                    will-change: transform;
                 }
                 .flake {
                     position: absolute;
                     background: white;
                     border-radius: 50%;
-                    filter: blur(1px);
                     animation: fall-snow linear infinite;
+                    will-change: transform;
                 }
                 .dust {
                     position: absolute;
@@ -131,8 +132,8 @@ export function WeatherBackground() {
                     height: 2px;
                     background: linear-gradient(to right, rgba(255,255,255,0), rgba(200,230,220,0.5), rgba(255,255,255,0));
                     border-radius: 50%;
-                    filter: blur(2px);
                     animation: blow-wind linear infinite;
+                    will-change: transform;
                 }
             `}} />
         </div>
@@ -156,7 +157,7 @@ function ClearSky() {
 }
 
 function CloudySky() {
-    const clouds = Array.from({ length: 12 }).map((_, i) => ({
+    const clouds = Array.from({ length: 4 }).map((_, i) => ({
         id: i,
         top: Math.random() * 70 + '%',
         width: Math.random() * 400 + 300 + 'px',
@@ -187,7 +188,7 @@ function CloudySky() {
 }
 
 function RainySky() {
-    const drops = Array.from({ length: 150 }).map((_, i) => ({
+    const drops = Array.from({ length: 40 }).map((_, i) => ({
         id: i,
         left: Math.random() * 100 + '%',
         duration: Math.random() * 0.4 + 0.4 + 's',
@@ -216,7 +217,7 @@ function RainySky() {
 }
 
 function SnowySky() {
-    const flakes = Array.from({ length: 100 }).map((_, i) => ({
+    const flakes = Array.from({ length: 30 }).map((_, i) => ({
         id: i,
         left: Math.random() * 100 + '%',
         duration: Math.random() * 6 + 6 + 's',
@@ -248,7 +249,7 @@ function SnowySky() {
 }
 
 function WindySky() {
-    const gusts = Array.from({ length: 60 }).map((_, i) => ({
+    const gusts = Array.from({ length: 15 }).map((_, i) => ({
         id: i,
         top: Math.random() * 100 + '%',
         duration: Math.random() * 2 + 1 + 's',
