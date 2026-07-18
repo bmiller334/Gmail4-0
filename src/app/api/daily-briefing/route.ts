@@ -50,7 +50,6 @@ Example tone:
             prompt: prompt,
             config: {
                 temperature: 0.7,
-                maxOutputTokens: 512,
             }
         });
 
