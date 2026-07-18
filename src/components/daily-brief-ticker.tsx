@@ -46,7 +46,7 @@ export function DailyBriefTicker() {
                 <div className="animate-pulse mr-2 h-2 w-2 rounded-full bg-amber-500"></div> DAILY BRIEF (8AM)
             </div>
             
-            <div className="flex animate-marquee whitespace-nowrap pl-56 hover:[animation-play-state:paused]">
+            <div className="flex animate-marquee whitespace-nowrap pl-56 hover:[animation-play-state:paused] items-center">
                 {/* Duplicate content to make the marquee loop smoothly */}
                 <div className="inline-flex items-center mx-4">
                     <span className="text-sm font-medium text-foreground">

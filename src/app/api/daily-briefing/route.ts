@@ -33,17 +33,19 @@ export async function GET() {
 
         // 4. Generate AI briefing with Genkit
         const prompt = `
-You are a warm, supportive personal life assistant. Generate a highly custom, encouraging morning briefing for the user's personal home page.
-Keep it strictly under 3 sentences. Do not use markdown bold/italic tags. Make it sound elegant and premium.
-
-Here is the context:
+You are a helpful personal assistant. Generate a daily brief tailored for a horizontally scrolling news ticker.
+Use the following information to construct the brief:
 - Current Weather in Syracuse, KS: ${weatherText}
 - Next Calendar Event today: ${nextEvent && nextEvent.start ? `"${nextEvent.summary}" at ${new Date(nextEvent.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : "No calendar events remaining today"}
 - Inbox State: ${inboxCount} unread emails in inbox.
-- Urgent Action Needed Emails: ${urgentEmails.length > 0 ? urgentEmails.map(e => `"${e.subject}" from ${e.sender}`).join(", ") : "No urgent action items"}
+- Urgent Action Needed Emails: ${urgentEmails.length > 0 ? urgentEmails.map(e => `"${e.subject}" from ${e.sender}`).join(" | ") : "No urgent action items"}
 
-Example tone:
-"Good morning! Your day starts clear and cool at 64 degrees. You have a quiet calendar today with just one event at 2:00 PM, and your inbox is clean of any urgent emails. Enjoy your coffee!"
+Format the response as a single, continuous line suitable for a news ticker. Incorporate the style of the "Daily Brief" in the Gemini app by including "Top of mind" and "FYI" sections, but separate them with bullets (•) or pipes (|) instead of line breaks. Include emojis.
+
+Example format:
+"Hey Blake, here's what today has in store 💫 • Top of mind: [Most urgent item/event] • FYI: [Weather, inbox state, etc] • [Short sign-off]"
+
+Do not include any line breaks in your response.
 `;
 
         const { text } = await ai.generate({
