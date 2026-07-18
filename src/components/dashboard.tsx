@@ -59,7 +59,6 @@ import { Slider } from "@/components/ui/slider";
 import { StatusIndicator } from "./status-indicator";
 import { DailyBriefTicker } from "./daily-brief-ticker";
 import { LabelOverviewWidget } from "./label-overview-widget";
-import { DailyBriefingWidget } from "./daily-briefing-widget";
 import { ImportantEmailsWidget } from "./important-emails-widget";
 import { StatsWidget } from "./stats-widget";
 // Types
@@ -320,6 +319,26 @@ export default function Dashboard() {
         }
     };
 
+    const handleMarkAsRead = async (id: string) => {
+        try {
+            const res = await fetch('/api/messages/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+
+            if (res.ok) {
+                toast({ title: "Marked as Read", description: "Email has been marked as read." });
+                setLogs(prev => prev.map(l => l.id === id ? { ...l, isUnread: false } : l));
+                setInboxCount(prev => Math.max(0, prev - 1));
+            } else {
+                toast({ variant: "destructive", title: "Failed to mark as read" });
+            }
+        } catch (err) {
+            toast({ variant: "destructive", title: "Error", description: "Failed to update email status." });
+        }
+    };
+
     const handleCorrection = async (log: EmailLog, newCategory: string) => {
         if (newCategory === log.category) return;
 
@@ -556,7 +575,11 @@ export default function Dashboard() {
                         </Card>
                     </div>
 
-                    <ImportantEmailsWidget logs={logs} />
+                    <ImportantEmailsWidget
+                        logs={logs}
+                        onMarkAsRead={handleMarkAsRead}
+                        onCorrectCategory={handleCorrection}
+                    />
                 </TabsContent>
 
                 <TabsContent value="activity" className="space-y-4">
@@ -728,7 +751,7 @@ export default function Dashboard() {
                             <CardContent>
                                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-[300px] overflow-y-auto pr-2 pb-2">
                                     {suggestions.map((s, i) => (
-                                        <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-background rounded-md border shadow-sm">
+                                        <div key={i} className="flex items-center justify-between p-3 bg-card dark:bg-background rounded-md border shadow-sm">
                                             <div className="overflow-hidden flex-1 mr-2">
                                                 <div className="font-medium truncate text-sm" title={s.sender}>{s.sender}</div>
                                                 <div className="text-xs text-muted-foreground flex items-center gap-1">
