@@ -2,7 +2,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Navigation } from "@/components/navigation";
-import { WeatherBackground } from "@/components/weather-background";
+
 export const metadata: Metadata = {
   title: 'Inbox Zero',
   description: 'AI-powered email sorter',
@@ -21,7 +21,6 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased flex flex-col min-h-screen relative overflow-x-hidden bg-transparent">
-        <WeatherBackground />
         <Navigation />
         <main className="flex-1 relative z-10 pt-20">
             {children}
