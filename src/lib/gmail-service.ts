@@ -3,6 +3,7 @@
 import { google } from "googleapis";
 import { GoogleAuth, OAuth2Client } from "google-auth-library";
 import { getStoredRefreshToken } from "@/lib/db-service";
+import { Readable } from "stream";
 
 // GLOBAL CACHE: Keeps label IDs in memory while the server is warm.
 let labelCache: Record<string, string> = {};
@@ -367,6 +368,108 @@ export async function getMessagesReadStatus(messageIds: string[]): Promise<Recor
   } catch (error) {
     console.error("Failed to check read status:", error);
     return {};
+  }
+}
+
+export async function saveAttachmentsToDrive(
+    messageId: string, 
+    existingGmail?: any, 
+    existingDrive?: any
+) {
+  try {
+    const gmail = existingGmail || await getGmailClient();
+    const drive = existingDrive || await getDriveClient();
+
+    const msgDetails = await gmail.users.messages.get({
+      userId: 'me',
+      id: messageId,
+      format: 'full',
+    });
+
+    const parts = msgDetails.data.payload?.parts || [];
+    const attachmentsToProcess: { filename: string; mimeType: string; attachmentId: string }[] = [];
+
+    function collectParts(partList: any[]) {
+      for (const part of partList) {
+        if (part.filename && part.body?.attachmentId) {
+          attachmentsToProcess.push({
+            filename: part.filename,
+            mimeType: part.mimeType || 'application/octet-stream',
+            attachmentId: part.body.attachmentId
+          });
+        }
+        if (part.parts) {
+          collectParts(part.parts);
+        }
+      }
+    }
+
+    collectParts(parts);
+
+    if (attachmentsToProcess.length === 0) {
+      return [];
+    }
+
+    // Ensure "Read Later Attachments" folder exists in Drive
+    let folderId: string | null = null;
+    const folderSearch = await drive.files.list({
+      q: "name = 'Read Later Attachments' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+      fields: 'files(id, name)',
+    });
+
+    if (folderSearch.data.files && folderSearch.data.files.length > 0) {
+      folderId = folderSearch.data.files[0].id;
+    } else {
+      const newFolder = await drive.files.create({
+        requestBody: {
+          name: 'Read Later Attachments',
+          mimeType: 'application/vnd.google-apps.folder',
+        },
+        fields: 'id',
+      });
+      folderId = newFolder.data.id || null;
+    }
+
+    const savedAttachments = [];
+
+    for (const att of attachmentsToProcess) {
+      const attDataRes = await gmail.users.messages.attachments.get({
+        userId: 'me',
+        messageId: messageId,
+        id: att.attachmentId
+      });
+
+      const rawBase64 = attDataRes.data.data;
+      if (!rawBase64) continue;
+
+      const buffer = Buffer.from(rawBase64, 'base64url');
+
+      const fileRes = await drive.files.create({
+        requestBody: {
+          name: att.filename,
+          parents: folderId ? [folderId] : undefined,
+        },
+        media: {
+          mimeType: att.mimeType,
+          body: Readable.from(buffer),
+        },
+        fields: 'id, name, mimeType, webViewLink',
+      });
+
+      if (fileRes.data.id) {
+        savedAttachments.push({
+          id: fileRes.data.id,
+          name: fileRes.data.name || att.filename,
+          mimeType: fileRes.data.mimeType || att.mimeType,
+          webViewLink: fileRes.data.webViewLink || `https://drive.google.com/file/d/${fileRes.data.id}/view`,
+        });
+      }
+    }
+
+    return savedAttachments;
+  } catch (error) {
+    console.error(`Failed to save attachments to Drive for message ${messageId}:`, error);
+    return [];
   }
 }
 

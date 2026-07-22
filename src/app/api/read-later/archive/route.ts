@@ -12,19 +12,24 @@ export async function POST(req: Request) {
 
         const gmail = await getGmailClient();
         
-        // 1. Find the "Read-Later" label ID
+        // 1. Find the "Read-Later" or "Read Later" label ID(s)
         const labels = await listLabels(gmail);
-        const readLaterLabel = labels?.find((l: any) => l.name?.toLowerCase() === "read-later");
+        const readLaterLabels = labels?.filter((l: any) => 
+            l.name?.toLowerCase() === "read-later" || 
+            l.name?.toLowerCase() === "read later"
+        ) || [];
         
-        if (readLaterLabel?.id) {
-            console.log(`Archiving Read-Later message: ${id} by removing label ID: ${readLaterLabel.id}`);
+        const labelIdsToRemove = readLaterLabels.map((l: any) => l.id).filter(Boolean);
+
+        if (labelIdsToRemove.length > 0) {
+            console.log(`Archiving Read-Later message: ${id} by removing label IDs: ${labelIdsToRemove.join(', ')}`);
             
-            // Remove the Read-Later label in Gmail
+            // Remove the Read-Later label(s) in Gmail
             await gmail.users.messages.modify({
                 userId: 'me',
                 id: id,
                 requestBody: {
-                    removeLabelIds: [readLaterLabel.id],
+                    removeLabelIds: labelIdsToRemove,
                 },
             });
         }

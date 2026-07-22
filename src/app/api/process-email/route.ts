@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyEmail } from "@/ai/email-classifier";
-import { moveEmailToCategory, getGmailClient } from "@/lib/gmail-service";
+import { moveEmailToCategory, getGmailClient, saveAttachmentsToDrive } from "@/lib/gmail-service";
 import { logEmailProcessing, getSenderRules, getStats, getLastHistoryId, updateLastHistoryId } from "@/lib/db-service";
 
 const HARD_LIMIT = 1300;
@@ -171,6 +171,16 @@ export async function POST(req: NextRequest) {
         // Move the email
         await moveEmailToCategory(messageId, category);
 
+        // If Read-Later category, check and save any attachments to Google Drive
+        let attachments: any[] | undefined = undefined;
+        if (category === "Read-Later") {
+          try {
+            attachments = await saveAttachmentsToDrive(messageId, gmail);
+          } catch (attErr) {
+            console.error(`[Push] Failed to save attachments for Read-Later message ${messageId}:`, attErr);
+          }
+        }
+
         // Store stats in Firestore
         await logEmailProcessing({
           id: messageId,
@@ -181,7 +191,8 @@ export async function POST(req: NextRequest) {
           snippet,
           reasoning: reasoning || "No reasoning provided",
           otpCode: otpCode,
-          timestamp: new Date()
+          timestamp: new Date(),
+          attachments: attachments
         });
 
         processedCount++;

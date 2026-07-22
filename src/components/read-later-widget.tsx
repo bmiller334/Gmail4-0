@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, ExternalLink, Bookmark, Clock, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, ExternalLink, Bookmark, Clock, Loader2, Sparkles, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,12 @@ type BookmarkItem = {
     subject: string;
     snippet: string;
     timestamp: any;
+    attachments?: {
+        id: string;
+        name: string;
+        mimeType: string;
+        webViewLink: string;
+    }[];
 };
 
 export function ReadLaterWidget() {
@@ -100,7 +106,7 @@ export function ReadLaterWidget() {
                     <Bookmark className="h-4 w-4 drop-shadow-[0_0_8px_rgba(139,92,246,0.5)]" /> Read Later Queue
                 </CardTitle>
                 <CardDescription className="text-xs">
-                    Sent links and articles automatically categorized for you
+                    Saved links, articles, and Google Drive attachments
                 </CardDescription>
             </CardHeader>
 
@@ -111,7 +117,7 @@ export function ReadLaterWidget() {
                             <Sparkles className="h-6 w-6 text-purple-400" />
                         </div>
                         <p className="text-xs font-semibold text-foreground">Your queue is fully cleared!</p>
-                        <p className="text-[10px] text-muted-foreground max-w-[200px]">Email links to yourself; Gemini will sort them right into this space.</p>
+                        <p className="text-[10px] text-muted-foreground max-w-[200px]">Manually label emails with Read-Later to save articles and attachments here.</p>
                     </div>
                 ) : (
                     <div className="space-y-2 divide-y divide-purple-500/10">
@@ -143,6 +149,24 @@ export function ReadLaterWidget() {
                                         <p className="text-[10px] text-muted-foreground line-clamp-2 pr-2 leading-relaxed">
                                             {b.snippet}
                                         </p>
+
+                                        {b.attachments && b.attachments.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                                {b.attachments.map((att) => (
+                                                    <a
+                                                        key={att.id}
+                                                        href={att.webViewLink}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1 text-[9px] font-medium bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 px-2 py-0.5 rounded-full transition-colors truncate max-w-[180px]"
+                                                        title={`Open ${att.name} in Google Drive`}
+                                                    >
+                                                        <FileText className="h-2.5 w-2.5 shrink-0" />
+                                                        <span className="truncate">{att.name}</span>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        )}
                                         
                                         <div className="flex items-center gap-2 pt-1 text-[9px] text-muted-foreground/60">
                                             <span className="truncate max-w-[120px]" title={b.sender}>From: {b.sender.split("<")[0].trim()}</span>

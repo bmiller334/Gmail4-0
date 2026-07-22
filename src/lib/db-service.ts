@@ -30,6 +30,13 @@ export const DOC_RECENT_SUMMARY_CACHE = 'recent_summary_cache';
 export const COLLECTION_AI_SUMMARIES = 'ai_summaries';
 
 // ... Types ...
+export type EmailAttachment = {
+    id: string;
+    name: string;
+    mimeType: string;
+    webViewLink: string;
+};
+
 export type EmailLog = {
     id: string;
     sender: string;
@@ -40,6 +47,7 @@ export type EmailLog = {
     snippet?: string;
     reasoning?: string;
     otpCode?: string;
+    attachments?: EmailAttachment[];
 };
 
 export type AiSummary = {

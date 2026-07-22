@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStats, getRecentLogs, getSenderRules, getWatchStatus, saveWatchStatus, logEmailProcessing } from '@/lib/db-service';
-import { getInboxCount, getMessagesReadStatus, getGmailClient, moveEmailToCategory } from '@/lib/gmail-service';
+import { getInboxCount, getMessagesReadStatus, getGmailClient, moveEmailToCategory, saveAttachmentsToDrive } from '@/lib/gmail-service';
 import { classifyEmail } from '@/ai/email-classifier';
 
 export const dynamic = 'force-dynamic';
@@ -105,7 +105,7 @@ export async function GET(req: Request) {
         let watchStatus = await getWatchStatus();
         watchStatus = await checkAndRenewWatch(watchStatus);
 
-        const [todayStats, weeklyStats, logs, insights, rules, inboxCount] = await Promise.all([
+        let [todayStats, weeklyStats, logs, insights, rules, inboxCount] = await Promise.all([
             getStats(1), // Today
             getStats(7), // Last 7 days
             getRecentLogs(50, { search, category }),
@@ -113,6 +113,79 @@ export async function GET(req: Request) {
             getSenderRules(),
             getInboxCount()
         ]);
+
+        // If requesting Read-Later category, perform a live sync with Gmail for any messages labeled Read-Later or Read Later
+        if (category === "Read-Later") {
+            try {
+                const gmail = await getGmailClient();
+                const res = await gmail.users.messages.list({
+                    userId: 'me',
+                    q: 'label:"Read-Later" OR label:"Read Later"',
+                    maxResults: 20
+                });
+
+                if (res.data.messages && res.data.messages.length > 0) {
+                    let hasNewLogs = false;
+                    for (const msg of res.data.messages) {
+                        if (!msg.id) continue;
+                        const existingLog = logs.find(l => l.id === msg.id);
+                        if (!existingLog) {
+                            try {
+                                const details = await gmail.users.messages.get({
+                                    userId: 'me',
+                                    id: msg.id,
+                                    format: 'metadata',
+                                    metadataHeaders: ['Subject', 'From', 'Date']
+                                });
+                                const headers = details.data.payload?.headers;
+                                const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
+                                const sender = headers?.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
+                                const dateStr = headers?.find((h: any) => h.name === 'Date')?.value;
+                                const emailDate = dateStr ? new Date(dateStr) : new Date();
+                                const snippet = details.data.snippet || '';
+
+                                // Process and upload any attachments to Google Drive
+                                const attachments = await saveAttachmentsToDrive(msg.id, gmail);
+
+                                await logEmailProcessing({
+                                    id: msg.id,
+                                    sender,
+                                    subject,
+                                    category: 'Read-Later',
+                                    isUrgent: false,
+                                    snippet,
+                                    reasoning: 'Synced from Gmail Read-Later label',
+                                    timestamp: emailDate,
+                                    attachments
+                                });
+                                hasNewLogs = true;
+                            } catch (msgErr) {
+                                console.error(`Failed to fetch/sync Read-Later message ${msg.id}:`, msgErr);
+                            }
+                        } else if (!existingLog.attachments) {
+                            // Sync attachments for existing log if not previously processed
+                            try {
+                                const attachments = await saveAttachmentsToDrive(msg.id, gmail);
+                                if (attachments.length > 0) {
+                                    await logEmailProcessing({
+                                        ...existingLog,
+                                        attachments
+                                    });
+                                    hasNewLogs = true;
+                                }
+                            } catch (msgErr) {
+                                console.error(`Failed to sync attachments for ${msg.id}:`, msgErr);
+                            }
+                        }
+                    }
+                    if (hasNewLogs) {
+                        logs = await getRecentLogs(50, { search, category });
+                    }
+                }
+            } catch (syncErr: any) {
+                console.error("Failed to sync Read-Later emails from Gmail:", syncErr.message);
+            }
+        }
 
         // Filter and get unread status only for important emails to display in ImportantEmailsWidget
         const EXCLUDED_CATEGORIES = ["Marketing", "Newsletter", "Promotions", "Social"];

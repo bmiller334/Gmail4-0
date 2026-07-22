@@ -57,8 +57,9 @@ export const classifyEmail = ai.defineFlow(
     ]);
 
     // Use user labels if available, otherwise fallback to static list (though user requested to avoid default)
-    // We add "Manual Sort" to ensure there's always a safe fallback
-    const availableCategories = userLabels.length > 0 ? userLabels : Array.from(EMAIL_CATEGORIES);
+    // We filter out "Read-Later" / "Read Later" because Read-Later is strictly a manual label added by the user.
+    const availableCategories = (userLabels.length > 0 ? userLabels : Array.from(EMAIL_CATEGORIES))
+        .filter(c => c.toLowerCase() !== "read-later" && c.toLowerCase() !== "read later");
     
     if (!availableCategories.some(c => c.toLowerCase() === "manual sort")) {
         availableCategories.push("Manual Sort");
@@ -95,7 +96,6 @@ Required JSON Format:
 
 Guidelines:
 - OTP / SSO Code Extraction: Look for One-Time Passwords, 2FA codes, SSO single sign-on verification passcodes, or security PINs in the subject/snippet. Extract ONLY the code itself with zero extra words.
-- "Read-Later": Use this category if the email is a link, bookmark, recipe, article, video link, or reading/listening material that the user sent to themselves or is meant to be read/watched later.
 
 ${examplesText}
 
