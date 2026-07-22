@@ -40,6 +40,8 @@ export function LabelOverviewWidget() {
         );
     }
 
+    const activeCategories = EMAIL_CATEGORIES.filter((category) => (unreadCounts[category] || 0) > 0);
+
     return (
         <Card className="w-full border-primary/10 shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-3 flex flex-wrap items-center gap-2">
@@ -47,28 +49,32 @@ export function LabelOverviewWidget() {
                     <Inbox className="h-4 w-4 text-primary" />
                     Unread Labels:
                 </div>
-                {EMAIL_CATEGORIES.map((category) => {
-                    const count = unreadCounts[category] || 0;
-                    return (
-                        <a 
-                            key={category}
-                            href={`https://mail.google.com/mail/u/0/#label/${encodeURIComponent(category)}`}
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="no-underline transition-transform hover:scale-105"
-                        >
-                            <Badge 
-                                variant={count > 0 ? "default" : "secondary"} 
-                                className={`gap-1.5 py-1 px-2.5 ${count === 0 ? 'opacity-60 hover:opacity-100' : 'shadow-sm'}`}
+                {activeCategories.length === 0 ? (
+                    <span className="text-xs text-muted-foreground italic">None</span>
+                ) : (
+                    activeCategories.map((category) => {
+                        const count = unreadCounts[category] || 0;
+                        return (
+                            <a 
+                                key={category}
+                                href={`https://mail.google.com/mail/u/0/#label/${encodeURIComponent(category)}`}
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="no-underline transition-transform hover:scale-105"
                             >
-                                {category}
-                                <span className={`${count > 0 ? 'bg-background text-foreground' : 'bg-muted-foreground/20 text-current'} text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none`}>
-                                    {count}
-                                </span>
-                            </Badge>
-                        </a>
-                    );
-                })}
+                                <Badge 
+                                    variant="default" 
+                                    className="gap-1.5 py-1 px-2.5 shadow-sm"
+                                >
+                                    {category}
+                                    <span className="bg-background text-foreground text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold leading-none">
+                                        {count}
+                                    </span>
+                                </Badge>
+                            </a>
+                        );
+                    })
+                )}
             </CardContent>
         </Card>
     );

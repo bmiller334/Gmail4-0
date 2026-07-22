@@ -81,7 +81,7 @@ ${urgencyCorrections.map(c => `"${c.subject}" by ${c.sender} -> ${c.shouldBeUrge
 
     const categoriesList = availableCategories.join(", ");
     const prompt = `
-You are an email classifier. 
+You are an intelligent email classifier and security assistant.
 Classify the email below into EXACTLY ONE of these categories: [${categoriesList}].
 
 Respond with a valid JSON object ONLY. Do not wrap in markdown blocks.
@@ -90,10 +90,11 @@ Required JSON Format:
   "category": "String (Must match one of the listed categories exactly)",
   "reasoning": "String (Very brief explanation, max 10 words)",
   "isUrgent": Boolean,
-  "otpCode": "String or null (Extract any Verification Code, OTP, or 2FA code. Return null if none is found.)"
+  "otpCode": "String or null (If this email is an OTP, SSO, 2FA, Security Code, Passcode, or Verification Code email, extract ONLY the exact code string e.g. '482910', 'X7J-92A', 'G-123456'. Return null if none is found.)"
 }
 
-Guidelines for specific categories:
+Guidelines:
+- OTP / SSO Code Extraction: Look for One-Time Passwords, 2FA codes, SSO single sign-on verification passcodes, or security PINs in the subject/snippet. Extract ONLY the code itself with zero extra words.
 - "Read-Later": Use this category if the email is a link, bookmark, recipe, article, video link, or reading/listening material that the user sent to themselves or is meant to be read/watched later.
 
 ${examplesText}

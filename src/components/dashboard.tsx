@@ -61,6 +61,7 @@ import { DailyBriefTicker } from "./daily-brief-ticker";
 import { LabelOverviewWidget } from "./label-overview-widget";
 import { ImportantEmailsWidget } from "./important-emails-widget";
 import { StatsWidget } from "./stats-widget";
+import { OtpWidget } from "./otp-widget";
 // Types
 type DashboardStats = {
     totalProcessed: number;
@@ -537,7 +538,8 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="w-full">
+                <div className="w-full space-y-3">
+                    <OtpWidget />
                     <LabelOverviewWidget />
                 </div>
 
