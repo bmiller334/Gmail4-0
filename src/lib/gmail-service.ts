@@ -242,21 +242,20 @@ export async function moveEmailToCategory(
          }
       }
       
-      console.log(`Moving message ${messageId} to label ${categoryLabelName} (${labelId})`);
+      console.log(`Labeling message ${messageId} with label ${categoryLabelName} (${labelId})`);
 
       await gmail.users.messages.modify({
         userId: 'me',
         id: messageId,
         requestBody: {
           addLabelIds: [labelId],
-          removeLabelIds: ['INBOX'],
         },
       });
       
-      console.log(`Successfully moved message ${messageId}`);
+      console.log(`Successfully labeled message ${messageId}`);
       
   } catch (error: any) {
-      console.error(`Failed to move email to ${categoryLabelName}:`, error);
+      console.error(`Failed to label email with ${categoryLabelName}:`, error);
       throw error;
   }
 }
