@@ -20,7 +20,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased flex flex-col min-h-screen relative overflow-x-hidden bg-transparent">
+      <body className="font-body antialiased flex flex-col min-h-screen relative overflow-x-hidden bg-background text-foreground">
         <Navigation />
         <main className="flex-1 relative z-10 pt-20">
             {children}
