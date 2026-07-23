@@ -173,7 +173,14 @@ export function ReadLaterWidget() {
                                             <span>•</span>
                                             <span className="flex items-center gap-0.5">
                                                 <Clock className="h-2.5 w-2.5" />
-                                                {new Date(b.timestamp._seconds * 1000).toLocaleDateString([], { month: "short", day: "numeric" })}
+                                                {(() => {
+                                                    const dateObj = b.timestamp?._seconds 
+                                                        ? new Date(b.timestamp._seconds * 1000) 
+                                                        : new Date(b.timestamp);
+                                                    return isNaN(dateObj.getTime()) 
+                                                        ? "Invalid Date" 
+                                                        : dateObj.toLocaleDateString([], { month: "short", day: "numeric" });
+                                                })()}
                                             </span>
                                         </div>
                                     </div>
