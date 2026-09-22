@@ -14,6 +14,7 @@ if (!getApps().length) {
 }
 
 const db = getFirestore();
+db.settings({ ignoreUndefinedProperties: true });
 
 export const COLLECTION_STATS = 'email_stats';
 export const DOC_DAILY_STATS = 'daily_stats';
