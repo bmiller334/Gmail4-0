@@ -180,6 +180,7 @@ export default function Dashboard() {
     const [editedSuggestionCategory, setEditedSuggestionCategory] = useState<string>("");
 
     const [cleanupCount, setCleanupCount] = useState<number>(10);
+    const [autoClean, setAutoClean] = useState<boolean>(false);
     const DAILY_HARD_LIMIT = 1300;
 
     const { toast } = useToast();
@@ -267,35 +268,77 @@ export default function Dashboard() {
 
     const handleCleanup = async () => {
         setCleaning(true);
-        toast({
-            title: "Starting Cleanup",
-            description: `Processing up to ${cleanupCount} emails from your inbox...`,
-        });
+        
+        let currentRemaining = Math.max(0, DAILY_HARD_LIMIT - (stats?.totalProcessed || 0));
+        let keepRunning = true;
+        let totalProcessedThisRun = 0;
 
-        try {
-            const res = await fetch('/api/cleanup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ batchSize: cleanupCount })
+        if (autoClean) {
+            toast({
+                title: "Starting Auto-Cleanup",
+                description: `Processing until inbox is empty or quota is reached...`,
             });
-            const data = await res.json();
-
-            if (res.ok) {
-                toast({
-                    title: "Cleanup Complete",
-                    description: data.message,
-                });
-                fetchData();
-            } else {
-                const errorMessage = data?.error || data?.message || "Unknown error";
-                toast({ variant: "destructive", title: "Cleanup Failed", description: errorMessage });
-            }
-        } catch (err: any) {
-            const message = err?.message || "Failed to connect to server.";
-            toast({ variant: "destructive", title: "Error", description: message });
-        } finally {
-            setCleaning(false);
+        } else {
+            toast({
+                title: "Starting Cleanup",
+                description: `Processing up to ${cleanupCount} emails from your inbox...`,
+            });
         }
+
+        while (keepRunning && currentRemaining > 0) {
+            const batchSizeToUse = autoClean ? Math.min(50, currentRemaining) : Math.min(cleanupCount, currentRemaining);
+
+            if (batchSizeToUse <= 0) {
+                toast({ title: "Quota reached", description: "Stopping cleanup to avoid exceeding quota." });
+                break;
+            }
+
+            try {
+                const res = await fetch('/api/cleanup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ batchSize: batchSizeToUse })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    const processed = data.results?.length || data.count || 0;
+                    currentRemaining -= processed;
+                    totalProcessedThisRun += processed;
+
+                    if (data.count === 0 || (data.results && data.results.length === 0) || processed === 0) {
+                        toast({
+                            title: "Cleanup Complete",
+                            description: "Inbox is empty or no more emails to process.",
+                        });
+                        keepRunning = false;
+                    } else if (!autoClean) {
+                        toast({
+                            title: "Cleanup Complete",
+                            description: data.message,
+                        });
+                        keepRunning = false;
+                    }
+                } else {
+                    const errorMessage = data?.error || data?.message || "Unknown error";
+                    toast({ variant: "destructive", title: "Cleanup Failed", description: errorMessage });
+                    keepRunning = false;
+                }
+            } catch (err: any) {
+                const message = err?.message || "Failed to connect to server.";
+                toast({ variant: "destructive", title: "Error", description: message });
+                keepRunning = false;
+            }
+        }
+
+        if (autoClean && currentRemaining <= 0) {
+            toast({ title: "Quota met", description: `Stopped auto-cleanup to preserve quota. Processed ${totalProcessedThisRun} total.`});
+        } else if (autoClean && totalProcessedThisRun > 0 && currentRemaining > 0) {
+            toast({ title: "Auto-Cleanup Finished", description: `Processed ${totalProcessedThisRun} total emails.`});
+        }
+
+        setCleaning(false);
+        fetchData();
     };
 
     const handleSummarizeCategory = async (category: string) => {
@@ -526,11 +569,19 @@ export default function Dashboard() {
                                         />
                                         <span className="w-8 text-sm font-bold">{cleanupCount}</span>
                                     </div>
+                                    <div className="flex items-center space-x-2 py-2">
+                                        <Switch 
+                                            id="auto-clean" 
+                                            checked={autoClean} 
+                                            onCheckedChange={setAutoClean} 
+                                        />
+                                        <Label htmlFor="auto-clean" className="text-sm font-medium">Auto-Clean until empty or quota met</Label>
+                                    </div>
                                     <div className="text-xs text-muted-foreground">
                                         Remaining Daily Quota: {remainingQuota}
                                     </div>
                                     <Button size="sm" onClick={handleCleanup} disabled={cleaning || remainingQuota <= 0}>
-                                        Run Cleanup
+                                        {cleaning ? "Cleaning..." : "Run Cleanup"}
                                     </Button>
                                 </div>
                             </PopoverContent>
