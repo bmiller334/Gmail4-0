@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyEmail } from "@/ai/email-classifier";
-import { moveEmailToCategory, getGmailClient, saveAttachmentsToDrive } from "@/lib/gmail-service";
-import { logEmailProcessing, getSenderRules, getStats, getLastHistoryId, updateLastHistoryId, isEmailProcessed } from "@/lib/db-service";
+import { moveEmailToCategory, getGmailClient, saveAttachmentsToDrive, createGoogleTask } from "@/lib/gmail-service";
+import { logEmailProcessing, getSenderRules, getStats, getLastHistoryId, updateLastHistoryId, isEmailProcessed, addReminder } from "@/lib/db-service";
 
 const HARD_LIMIT = 1300;
 
@@ -163,6 +163,7 @@ export async function POST(req: NextRequest) {
         let isUrgent = false;
         let reasoning = null;
         let otpCode: string | undefined = undefined;
+        let trialInfo: any = undefined;
 
         // Check deterministic rules first
         const matchedRule = (rules || []).find(r => sender.toLowerCase().includes(r.sender.toLowerCase()));
@@ -180,6 +181,7 @@ export async function POST(req: NextRequest) {
             isUrgent = classification.isUrgent;
             reasoning = classification.reasoning;
             otpCode = classification.otpCode;
+            trialInfo = classification.trialInfo;
             console.log(`[Push] AI Classified as: ${category}`);
           } catch (aiError) {
             console.error("[Push] AI Classification failed:", aiError);
@@ -191,6 +193,35 @@ export async function POST(req: NextRequest) {
 
         // Move the email
         await moveEmailToCategory(messageId, category);
+
+        // Process Free Trial Reminders
+        if (trialInfo && trialInfo.isTrialStarted && trialInfo.serviceName) {
+            let trialEnd = trialInfo.trialEndDate ? new Date(trialInfo.trialEndDate) : null;
+            let reminderDate = null;
+            if (trialEnd && !isNaN(trialEnd.getTime())) {
+                reminderDate = new Date(trialEnd);
+                reminderDate.setDate(reminderDate.getDate() - 1);
+            }
+            try {
+                await addReminder({
+                    serviceName: trialInfo.serviceName,
+                    trialEndDate: trialEnd,
+                    reminderDate: reminderDate,
+                    emailId: messageId,
+                    status: 'pending'
+                });
+                console.log(`[Push] Created reminder for ${trialInfo.serviceName}`);
+
+                if (reminderDate) {
+                    await createGoogleTask(
+                        `Cancel Free Trial: ${trialInfo.serviceName}`,
+                        reminderDate
+                    );
+                }
+            } catch (remErr) {
+                console.error(`[Push] Failed to create reminder for ${messageId}`, remErr);
+            }
+        }
 
         // If Read-Later category, check and save any attachments to Google Drive
         let attachments: any[] | undefined = undefined;

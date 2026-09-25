@@ -15,10 +15,11 @@
 2. **Processing Pipeline**: OAuth Auth -> Fetch Snippet -> Rule Match (deterministic `email_rules`) -> Fallback to AI (Gemini 2.5 Flash, low temperature for deterministic classifications) -> Move Label (Gmail API) -> Log to Firestore (`email_logs`).
 3. **Adaptive Learning**: Few-shot learning via last 5 user overrides (`email_corrections` and `email_urgency_corrections`).
 4. **Dashboard UI & Widgets**: Modularized UI with global `<Navigation />` across dedicated routes:
-   - **`/` (Dashboard Overview)**: Core inbox metrics, logs, Label Overview, and `daily-briefing-widget.tsx`.
+   - **`/` (Dashboard Overview)**: Core inbox metrics, Label Overview, and `daily-brief-ticker.tsx`.
    - **`/home` (Smart Home)**: Environment tracking via `weather-widget.tsx` and `thermostat-widget.tsx`.
    - **`/finance` (Markets)**: Sector and sentiment insights via `market-insights-widget.tsx`.
    - **`/assistant` (Productivity)**: Personal AI queries via `mind-palace.tsx` and bookmarking via `read-later-widget.tsx`.
+   - **`/logs` (System Logs)**: Logs view for system processing and AI history.
    - **Atmospheric UI**: Live weather-dependent theme backgrounds (`weather-background.tsx`) run persistently in `src/app/layout.tsx`.
 5. **Rate Limiting**: AI calls capped at 1300/day. Batch cleanup (`/api/cleanup`) capped at 50 emails per request.
 
@@ -61,12 +62,23 @@
 | `src/app/home/page.tsx` | Smart Home route for Thermostat and Weather widgets. |
 | `src/app/finance/page.tsx` | Finance route for Market Insights widget. |
 | `src/app/assistant/page.tsx` | Productivity route for Mind Palace and Read Later widgets. |
+| `src/app/logs/page.tsx` | System and processing logs view. |
 | `src/components/dashboard.tsx` | Main command center frontend UI combining widgets. |
-| `src/components/daily-briefing-widget.tsx` | Morning Coffee UI card rendering custom context-aware AI greetings. |
+| `src/components/daily-brief-ticker.tsx` | Morning Coffee UI ticker rendering custom context-aware AI greetings. |
 | `src/components/market-insights-widget.tsx` | Market sentiment, indices, and sector insights. |
 | `src/components/read-later-widget.tsx` | Bookmarks queue syncing with Gmail API to archive checked items. |
 | `src/components/thermostat-widget.tsx` | Home temperature and climate control interface. |
 | `src/components/mind-palace.tsx` | Gemini Assistant UI querying email, Drive, and Photos context. |
+| `src/components/otp-widget.tsx` | Widget displaying extracted OTP and 2FA codes. |
+| `src/components/important-emails-widget.tsx` | Widget displaying high priority and urgent emails. |
+| `src/components/headline-widget.tsx` | Widget for displaying news headlines. |
+| `src/components/youtube-widget.tsx` | YouTube media integration widget. |
+| `src/components/stats-widget.tsx` | Dashboard statistics and numerical insights. |
+| `src/components/commodity-ticker.tsx` | Commodity prices ticker. |
+| `src/components/community-events.tsx` | Community events display. |
+| `src/components/shift-notes.tsx` | Shift notes and logs. |
+| `src/components/status-indicator.tsx` | System and service status indicator. |
+| `src/components/label-overview-widget.tsx` | Overview of email labels and counts. |
 | `src/app/ai-history/page.tsx` | Card-based AI History logs displaying prompt details and classifications. |
 | `cloudbuild.yaml` | Build pipeline config utilizing Kaniko layer caching. |
 

@@ -29,6 +29,7 @@ export const DOC_AUTH = 'google_auth'; // New document for Auth
 export const DOC_WATCH = 'watch_status'; // New document for Watch Status
 export const DOC_RECENT_SUMMARY_CACHE = 'recent_summary_cache';
 export const COLLECTION_AI_SUMMARIES = 'ai_summaries';
+export const COLLECTION_REMINDERS = 'reminders';
 
 // ... Types ...
 export type EmailAttachment = {
@@ -92,6 +93,16 @@ export type StoreNote = {
     content: string;
     createdAt: Date;
     author: string;
+};
+
+export type Reminder = {
+    id: string;
+    serviceName: string;
+    trialEndDate: Date | null;
+    reminderDate: Date | null;
+    createdAt: Date;
+    emailId: string;
+    status: 'pending' | 'completed' | 'dismissed';
 };
 
 // ... Existing Functions ...
@@ -210,14 +221,15 @@ export async function getStats(days = 1): Promise<DocumentData | null | { date: 
              return doc.data() || null;
         } else {
              const today = new Date();
-             const promises = [];
+             const refs = [];
              for(let i=0; i<days; i++) {
                  const d = new Date(today);
                  d.setDate(d.getDate() - i);
                  const dateStr = getMountainDateString(d);
-                 promises.push(db.collection(COLLECTION_STATS).doc(dateStr).get());
+                 refs.push(db.collection(COLLECTION_STATS).doc(dateStr));
              }
-             const docs = await Promise.all(promises);
+             if (refs.length === 0) return [];
+             const docs = await db.getAll(...refs);
              return docs.map((d, i) => {
                  const date = new Date(today);
                  date.setDate(date.getDate() - i);
@@ -550,5 +562,54 @@ export async function getTopSpammers(limit: number = 20) {
     } catch (error) {
         console.error("Error fetching top spammers:", error);
         return [];
+    }
+}
+
+// --- Reminders ---
+
+export async function addReminder(data: Omit<Reminder, 'id' | 'createdAt'>) {
+    try {
+        const docRef = db.collection(COLLECTION_REMINDERS).doc();
+        await docRef.set({
+            ...data,
+            id: docRef.id,
+            createdAt: new Date(),
+        });
+        return docRef.id;
+    } catch (error) {
+        console.error("Error adding reminder:", error);
+        throw error;
+    }
+}
+
+export async function getPendingReminders(): Promise<Reminder[]> {
+    try {
+        const snapshot = await db.collection(COLLECTION_REMINDERS)
+            .where('status', '==', 'pending')
+            .orderBy('reminderDate', 'asc')
+            .get();
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                trialEndDate: data.trialEndDate ? data.trialEndDate.toDate() : null,
+                reminderDate: data.reminderDate ? data.reminderDate.toDate() : null,
+                createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+            } as Reminder;
+        });
+    } catch (error) {
+        console.error("Error fetching reminders:", error);
+        return [];
+    }
+}
+
+export async function dismissReminder(id: string) {
+    try {
+        await db.collection(COLLECTION_REMINDERS).doc(id).update({
+            status: 'dismissed'
+        });
+    } catch (error) {
+        console.error("Error dismissing reminder:", error);
+        throw error;
     }
 }

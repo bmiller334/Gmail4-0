@@ -63,7 +63,8 @@ const getAuthClient = async () => {
       const auth = new google.auth.GoogleAuth({
         scopes: [
             'https://www.googleapis.com/auth/gmail.modify',
-            'https://www.googleapis.com/auth/calendar.readonly'
+            'https://www.googleapis.com/auth/calendar.readonly',
+            'https://www.googleapis.com/auth/tasks'
         ],
       });
       return await auth.getClient();
@@ -88,6 +89,11 @@ export const getSheetsClient = async () => {
 export const getDriveClient = async () => {
   const authClient = await getAuthClient();
   return google.drive({ version: 'v3', auth: authClient as any });
+};
+
+export const getTasksClient = async () => {
+  const authClient = await getAuthClient();
+  return google.tasks({ version: 'v1', auth: authClient as any });
 };
 
 export async function getRecentDriveFiles() {
@@ -344,25 +350,26 @@ export async function getUnreadEmailsByCategory(categoryName: string, maxResults
         return [];
     }
 
-    const messages = [];
-    for (const m of res.data.messages) {
-        if (!m.id) continue;
-        const details = await gmail.users.messages.get({
-            userId: 'me',
-            id: m.id,
-            format: 'metadata',
-            metadataHeaders: ['Subject', 'From']
-        });
-        
-        const headers = details.data.payload?.headers;
-        const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
-        const sender = headers?.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
-        const snippet = details.data.snippet || '';
-        
-        messages.push({ subject, sender, snippet });
-    }
+    const messages = await Promise.all(
+        res.data.messages.map(async (m) => {
+            if (!m.id) return null;
+            const details = await gmail.users.messages.get({
+                userId: 'me',
+                id: m.id,
+                format: 'metadata',
+                metadataHeaders: ['Subject', 'From']
+            });
+            
+            const headers = details.data.payload?.headers;
+            const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';
+            const sender = headers?.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
+            const snippet = details.data.snippet || '';
+            
+            return { subject, sender, snippet };
+        })
+    );
     
-    return messages;
+    return messages.filter(Boolean);
   } catch (error) {
     console.error(`Failed to get unread emails for ${categoryName}:`, error);
     throw error;
@@ -501,3 +508,21 @@ export async function saveAttachmentsToDrive(
   }
 }
 
+export async function createGoogleTask(title: string, dueDate: Date) {
+    try {
+        const tasks = await getTasksClient();
+        
+        const res = await tasks.tasks.insert({
+            tasklist: '@default',
+            requestBody: {
+                title: title,
+                due: dueDate.toISOString(),
+            }
+        });
+        console.log(`Created Google Task: ${title}`);
+        return res.data;
+    } catch (error) {
+        console.error("Failed to create Google Task:", error);
+        return null;
+    }
+}

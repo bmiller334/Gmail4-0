@@ -9,6 +9,11 @@ const ClassificationSchema = z.object({
   reasoning: z.string(),
   isUrgent: z.boolean(),
   otpCode: z.string().optional(),
+  trialInfo: z.object({
+    isTrialStarted: z.boolean(),
+    serviceName: z.string(),
+    trialEndDate: z.string().optional(),
+  }).optional(),
 });
 
 function normalize(str: string): string {
@@ -91,11 +96,17 @@ Required JSON Format:
   "category": "String (Must match one of the listed categories exactly)",
   "reasoning": "String (Very brief explanation, max 10 words)",
   "isUrgent": Boolean,
-  "otpCode": "String or null (If this email is an OTP, SSO, 2FA, Security Code, Passcode, or Verification Code email, extract ONLY the exact code string e.g. '482910', 'X7J-92A', 'G-123456'. Return null if none is found.)"
+  "otpCode": "String or null (If this email is an OTP, SSO, 2FA, Security Code, Passcode, or Verification Code email, extract ONLY the exact code string e.g. '482910', 'X7J-92A', 'G-123456'. Return null if none is found.)",
+  "trialInfo": {
+    "isTrialStarted": "Boolean (True ONLY if the email states that a free trial has been STARTED by the user, not just offered.)",
+    "serviceName": "String (Name of the service the trial is for)",
+    "trialEndDate": "String or null (The date the trial ends in YYYY-MM-DD format, if mentioned. E.g. '2023-11-25')"
+  }
 }
 
 Guidelines:
 - OTP / SSO Code Extraction: Look for One-Time Passwords, 2FA codes, SSO single sign-on verification passcodes, or security PINs in the subject/snippet. Extract ONLY the code itself with zero extra words.
+- Free Trial Extraction: Identify if the user has actively started a free trial. If so, extract the service name and the trial end date. If the end date is given as 'in X days', calculate the date from today.
 
 ${examplesText}
 
@@ -139,7 +150,8 @@ Snippet: ${snippet}
                         category: foundCategory,
                         reasoning: "Extracted from malformed AI response.",
                         isUrgent: cleanText.toLowerCase().includes("true"),
-                        otpCode: undefined
+                        otpCode: undefined,
+                        trialInfo: undefined
                     };
                 } else {
                      throw new Error("Could not parse JSON or find category in text.");
@@ -168,6 +180,7 @@ Snippet: ${snippet}
               reasoning: output.reasoning || "No reasoning provided.",
               isUrgent: !!output.isUrgent,
               otpCode: output.otpCode || undefined,
+              trialInfo: output.trialInfo,
             };
 
         } catch (error: any) {
@@ -179,7 +192,8 @@ Snippet: ${snippet}
                     category: "Manual Sort",
                     reasoning: "AI Error: " + error.message,
                     isUrgent: false,
-                    otpCode: undefined
+                    otpCode: undefined,
+                    trialInfo: undefined
                 };
             }
             
@@ -194,7 +208,8 @@ Snippet: ${snippet}
         category: "Manual Sort",
         reasoning: "AI Error: Max retries exceeded.",
         isUrgent: false,
-        otpCode: undefined
+        otpCode: undefined,
+        trialInfo: undefined
     };
   }
 );

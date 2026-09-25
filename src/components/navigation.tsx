@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Home, TrendingUp, Sparkles, Cloud } from "lucide-react";
+import { LayoutDashboard, Home, TrendingUp, Sparkles, Cloud, Bell, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
@@ -16,6 +17,35 @@ import {
 export function Navigation() {
     const pathname = usePathname();
     const projectId = "gmail4-0";
+    const [reminders, setReminders] = useState<any[]>([]);
+    
+    useEffect(() => {
+        const fetchReminders = async () => {
+            try {
+                const res = await fetch("/api/reminders");
+                if (res.ok) {
+                    const data = await res.json();
+                    setReminders(data.reminders || []);
+                }
+            } catch (error) {
+                console.error("Failed to fetch reminders:", error);
+            }
+        };
+        fetchReminders();
+    }, []);
+
+    const dismissReminder = async (id: string) => {
+        try {
+            await fetch("/api/reminders", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id })
+            });
+            setReminders(prev => prev.filter(r => r.id !== id));
+        } catch (error) {
+            console.error("Failed to dismiss reminder:", error);
+        }
+    };
 
     const links = [
         { name: "Overview", href: "/", icon: LayoutDashboard },
@@ -57,6 +87,40 @@ export function Navigation() {
             })}
             
             <div className="w-px h-6 bg-border mx-1"></div>
+
+            <DropdownMenu>
+                <DropdownMenuTrigger className="relative flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200 outline-none">
+                    <Bell className="w-4 h-4 opacity-70" />
+                    {reminders.length > 0 && (
+                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-background"></span>
+                    )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64 max-h-[300px] overflow-y-auto">
+                    <DropdownMenuLabel>Reminders ({reminders.length})</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {reminders.length === 0 ? (
+                        <div className="p-4 text-sm text-center text-muted-foreground">No pending reminders</div>
+                    ) : (
+                        reminders.map((reminder) => (
+                            <div key={reminder.id} className="flex flex-col gap-1 p-2 text-sm border-b last:border-0">
+                                <div className="font-medium flex justify-between items-start">
+                                    <span>{reminder.serviceName} Free Trial</span>
+                                    <button 
+                                        onClick={() => dismissReminder(reminder.id)}
+                                        className="text-muted-foreground hover:text-primary"
+                                        title="Dismiss"
+                                    >
+                                        <CheckCircle className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                    Cancel before: {reminder.reminderDate ? new Date(reminder.reminderDate).toLocaleDateString() : 'Unknown'}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
 
             <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200 outline-none">
