@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyEmail } from "@/ai/email-classifier";
 import { moveEmailToCategory, getGmailClient, saveAttachmentsToDrive } from "@/lib/gmail-service";
-import { logEmailProcessing, getSenderRules, getStats, getLastHistoryId, updateLastHistoryId } from "@/lib/db-service";
+import { logEmailProcessing, getSenderRules, getStats, getLastHistoryId, updateLastHistoryId, isEmailProcessed } from "@/lib/db-service";
 
 const HARD_LIMIT = 1300;
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (messageIds.length === 0) {
       const response = await gmail.users.messages.list({
         userId: 'me',
-        q: 'label:INBOX is:unread', 
+        q: 'label:INBOX is:unread -label:Auto-Processed', 
         maxResults: 5, // Process up to 5 to catch burst arrivals
       });
 
@@ -129,6 +129,27 @@ export async function POST(req: NextRequest) {
         if (!messageDetails.labelIds?.includes('INBOX')) {
           console.log(`[Push] Message ${messageId} is no longer in INBOX, skipping.`);
           continue;
+        }
+
+        // Check if we have already processed this email
+        const alreadyProcessed = await isEmailProcessed(messageId);
+        if (alreadyProcessed) {
+            console.log(`[Push] Skipping: already processed ${messageId}`);
+            // Add Auto-Processed label if it somehow missed it
+            try {
+                const labelsRes = await gmail.users.labels.list({ userId: 'me' });
+                const autoProcessedLabel = labelsRes.data.labels?.find(l => l.name === 'Auto-Processed');
+                if (autoProcessedLabel?.id && !messageDetails.labelIds?.includes(autoProcessedLabel.id)) {
+                    await gmail.users.messages.modify({
+                        userId: 'me',
+                        id: messageId,
+                        requestBody: { addLabelIds: [autoProcessedLabel.id] }
+                    });
+                }
+            } catch (e) {
+                console.error(`[Push] Failed to add Auto-Processed label to skipped email ${messageId}`, e);
+            }
+            continue;
         }
 
         const headers = messageDetails.payload?.headers;

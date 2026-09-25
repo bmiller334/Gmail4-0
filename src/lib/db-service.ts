@@ -132,6 +132,15 @@ export async function logEmailProcessing(data: EmailLog) {
     }
 }
 
+export async function isEmailProcessed(id: string): Promise<boolean> {
+    try {
+        const doc = await db.collection(COLLECTION_LOGS).doc(id).get();
+        return doc.exists;
+    } catch (error) {
+        return false;
+    }
+}
+
 export async function addCorrection(data: EmailCorrection) {
     try {
         await db.collection(COLLECTION_CORRECTIONS).doc(data.id).set(data);

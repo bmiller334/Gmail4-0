@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { classifyEmail } from "@/ai/email-classifier";
 import { moveEmailToCategory, getGmailClient } from "@/lib/gmail-service";
-import { logEmailProcessing, getStats } from "@/lib/db-service";
+import { logEmailProcessing, getStats, isEmailProcessed } from "@/lib/db-service";
 
 export const maxDuration = 300; 
 const HARD_LIMIT = 1300;
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     console.log(`Cleanup API: Fetching unread emails from INBOX (limit: ${limit})...`);
     const response = await gmail.users.messages.list({
         userId: 'me',
-        q: 'label:INBOX is:unread',
+        q: 'label:INBOX is:unread -label:Auto-Processed',
         maxResults: limit, 
     });
 
@@ -55,6 +55,32 @@ export async function POST(req: Request) {
                 format: 'metadata',
                 metadataHeaders: ['Subject', 'From'],
             });
+
+            // Check if we have already processed this email
+            const alreadyProcessed = await isEmailProcessed(msg.id);
+            if (alreadyProcessed) {
+                console.log(`Skipping: already processed ${msg.id}`);
+                // Instead of archiving, we just add the Auto-Processed label 
+                // so it's excluded from future queries but remains in the inbox
+                try {
+                    // We need to fetch the label ID for Auto-Processed first, but for simplicity
+                    // we can just let moveEmailToCategory handle it, or fetch labels here.
+                    // Actually, the simplest way is to fetch the labels:
+                    const labelsRes = await gmail.users.labels.list({ userId: 'me' });
+                    const autoProcessedLabel = labelsRes.data.labels?.find(l => l.name === 'Auto-Processed');
+                    
+                    if (autoProcessedLabel?.id) {
+                        await gmail.users.messages.modify({
+                            userId: 'me',
+                            id: msg.id,
+                            requestBody: { addLabelIds: [autoProcessedLabel.id] }
+                        });
+                    }
+                } catch (e) {
+                    console.error(`Failed to add Auto-Processed label to skipped email ${msg.id}`, e);
+                }
+                return;
+            }
 
             const headers = messageDetails.data.payload?.headers;
             const subject = headers?.find((h: any) => h.name === 'Subject')?.value || 'No Subject';

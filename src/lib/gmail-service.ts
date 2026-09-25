@@ -243,13 +243,41 @@ export async function moveEmailToCategory(
          }
       }
       
-      console.log(`Labeling message ${messageId} with label ${categoryLabelName} (${labelId})`);
+      // Also apply an Auto-Processed label so we can exclude them in the future
+      const autoProcessedLabelName = 'Auto-Processed';
+      let autoProcessedLabelId = labelCache[autoProcessedLabelName.toLowerCase()];
+
+      if (!autoProcessedLabelId) {
+          try {
+              const newLabel = await gmail.users.labels.create({
+                  userId: 'me',
+                  requestBody: {
+                      name: autoProcessedLabelName,
+                      labelListVisibility: 'labelHide', // Hide it to not clutter
+                      messageListVisibility: 'hide'
+                  }
+              });
+              if (newLabel.data && newLabel.data.id) {
+                  autoProcessedLabelId = newLabel.data.id;
+                  labelCache[autoProcessedLabelName.toLowerCase()] = autoProcessedLabelId;
+              }
+          } catch (createError) {
+              console.error(`Failed to create label ${autoProcessedLabelName}:`, createError);
+          }
+      }
+
+      const labelsToAdd = [labelId];
+      if (autoProcessedLabelId) {
+          labelsToAdd.push(autoProcessedLabelId);
+      }
+
+      console.log(`Labeling message ${messageId} with label ${categoryLabelName} (${labelId}) and Auto-Processed`);
 
       await gmail.users.messages.modify({
         userId: 'me',
         id: messageId,
         requestBody: {
-          addLabelIds: [labelId],
+          addLabelIds: labelsToAdd,
         },
       });
       
